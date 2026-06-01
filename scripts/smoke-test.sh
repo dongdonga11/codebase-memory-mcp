@@ -279,6 +279,45 @@ if [ "$RX_ROWS" -lt 1 ]; then
 fi
 echo "OK: query_graph WHERE f.name =~ regex returned $RX_ROWS row(s)"
 
+# keys(n) → JSON list including "name"
+KEYSV=$(cyp_first_cell 'MATCH (f:Function) RETURN keys(f) AS k LIMIT 1')
+case "$KEYSV" in
+  *'"name"'*) echo "OK: query_graph keys(f) = $KEYSV" ;;
+  *) echo "FAIL: query_graph keys(f) returned '$KEYSV'"; exit 1 ;;
+esac
+
+# reverse() + replace() + left() string functions
+REVV=$(cyp_first_cell 'MATCH (f:Function) RETURN reverse(f.name) AS r LIMIT 1')
+[ -n "$REVV" ] && echo "OK: query_graph reverse(f.name) = $REVV" || { echo "FAIL: reverse empty"; exit 1; }
+REPV=$(cyp_first_cell 'MATCH (f:Function) RETURN replace(f.name, "a", "A") AS r LIMIT 1')
+[ -n "$REPV" ] && echo "OK: query_graph replace(...) = $REPV" || { echo "FAIL: replace empty"; exit 1; }
+LEFTV=$(cyp_first_cell 'MATCH (f:Function) RETURN left(f.name, 3) AS l LIMIT 1')
+[ -n "$LEFTV" ] && echo "OK: query_graph left(f.name,3) = $LEFTV" || { echo "FAIL: left empty"; exit 1; }
+
+# NOT EXISTS dead-code query (functions with no caller)
+CYPHER_NX=$(cli query_graph "{\"project\":\"$PROJECT\",\"query\":\"MATCH (f:Function) WHERE NOT EXISTS { (f)<-[:CALLS]-() } RETURN f.name\"}")
+NX_OK=$(echo "$CYPHER_NX" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print('rows' in d)" 2>/dev/null || echo "False")
+[ "$NX_OK" = "True" ] && echo "OK: query_graph NOT EXISTS dead-code query executed" || { echo "FAIL: NOT EXISTS query"; echo "$CYPHER_NX" | head -c 300; exit 1; }
+
+# CASE expression in RETURN
+CASEV=$(cyp_first_cell 'MATCH (f:Function) RETURN CASE WHEN f.name =~ ".+" THEN "named" ELSE "anon" END AS c LIMIT 1')
+[ "$CASEV" = "named" ] && echo "OK: query_graph CASE expression = $CASEV" || { echo "FAIL: CASE returned '$CASEV'"; exit 1; }
+
+# unsupported function must FAIL LOUDLY (not silently return empty)
+ERROUT=$(cli query_graph "{\"project\":\"$PROJECT\",\"query\":\"MATCH (f:Function) RETURN nosuchfn(f.name)\"}" 2>&1 || true)
+case "$ERROUT" in
+  *unsupported*) echo "OK: unsupported function errors loudly" ;;
+  *) echo "FAIL: unsupported function did not error: $ERROUT" | head -c 300; exit 1 ;;
+esac
+
+# 3f: get_architecture surfaces Leiden community clusters
+ARCH=$(cli get_architecture "{\"project\":\"$PROJECT\",\"aspects\":[\"clusters\"]}")
+NCLUST=$(echo "$ARCH" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(len(d.get('clusters',[])))" 2>/dev/null || echo "0")
+if [ "$NCLUST" -lt 1 ]; then
+  echo "FAIL: get_architecture returned 0 community clusters"; echo "$ARCH" | head -c 400; exit 1
+fi
+echo "OK: get_architecture returned $NCLUST community cluster(s)"
+
 # 3e: delete_project cleanup
 cli delete_project "{\"project\":\"$PROJECT\"}" > /dev/null
 

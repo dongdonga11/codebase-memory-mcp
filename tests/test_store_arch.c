@@ -978,6 +978,58 @@ TEST(leiden_resolution_controls_granularity) {
     PASS();
 }
 
+/* get_architecture "clusters" aspect: Leiden communities surfaced compactly. */
+TEST(arch_clusters_basic) {
+    cbm_store_t *s = cbm_store_open_memory();
+    cbm_store_upsert_project(s, "test", "/tmp/test");
+
+    /* Two 4-function cliques in two packages, one bridge between them. */
+    int64_t id[8];
+    for (int i = 0; i < 8; i++) {
+        char nm[32];
+        char qn[64];
+        int grp = i / 4;
+        snprintf(nm, sizeof(nm), "fn%d", i);
+        snprintf(qn, sizeof(qn), "test.pkg%d.mod.fn%d", grp, i);
+        cbm_node_t node = {.project = "test",
+                           .label = "Function",
+                           .name = nm,
+                           .qualified_name = qn,
+                           .file_path = "f.go"};
+        id[i] = cbm_store_upsert_node(s, &node);
+    }
+    for (int g = 0; g < 2; g++) {
+        for (int a = 0; a < 4; a++) {
+            for (int b = a + 1; b < 4; b++) {
+                cbm_edge_t e = {.project = "test",
+                                .source_id = id[(g * 4) + a],
+                                .target_id = id[(g * 4) + b],
+                                .type = "CALLS"};
+                cbm_store_insert_edge(s, &e);
+            }
+        }
+    }
+    cbm_edge_t bridge = {
+        .project = "test", .source_id = id[0], .target_id = id[4], .type = "CALLS"};
+    cbm_store_insert_edge(s, &bridge);
+
+    cbm_architecture_info_t info;
+    memset(&info, 0, sizeof(info));
+    const char *aspects[] = {"clusters"};
+    ASSERT_EQ(cbm_store_get_architecture(s, "test", aspects, 1, &info), CBM_STORE_OK);
+    ASSERT_TRUE(info.cluster_count >= 2); /* two dense communities */
+    for (int i = 0; i < info.cluster_count; i++) {
+        ASSERT_TRUE(info.clusters[i].members >= 2);
+        ASSERT_NOT_NULL(info.clusters[i].label);
+        ASSERT_TRUE(info.clusters[i].cohesion >= 0.0 && info.clusters[i].cohesion <= 1.0);
+        ASSERT_EQ(info.clusters[i].edge_type_count, 1);
+        ASSERT_TRUE(info.clusters[i].top_node_count > 0);
+    }
+    cbm_store_architecture_free(&info);
+    cbm_store_close(s);
+    PASS();
+}
+
 /* ── Helper function tests ──────────────────────────────────────── */
 
 TEST(qn_to_package) {
@@ -1179,6 +1231,7 @@ SUITE(store_arch) {
     RUN_TEST(louvain_converges);
     RUN_TEST(leiden_multilevel_collapses_noise);
     RUN_TEST(leiden_resolution_controls_granularity);
+    RUN_TEST(arch_clusters_basic);
 
     /* Helpers */
     RUN_TEST(qn_to_package);

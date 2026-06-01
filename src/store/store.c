@@ -4620,6 +4620,286 @@ int cbm_louvain(const int64_t *nodes, int node_count, const cbm_louvain_edge_t *
     return cbm_leiden(nodes, node_count, edges, edge_count, 1.0, out, out_count);
 }
 
+/* ── Architecture: community clusters via Leiden ───────────────── */
+
+enum {
+    CBM_CLUSTER_TOP_N = 12,       /* report at most this many clusters */
+    CBM_CLUSTER_MAX_TOPNODES = 5, /* representative node names per cluster */
+    CBM_CLUSTER_MAX_PKGS = 5,     /* packages listed per cluster */
+    CBM_CLUSTER_MIN_MEMBERS = 2,  /* skip singletons */
+    CBM_CLUSTER_NODE_CAP = 8000   /* bound the work for very large graphs */
+};
+
+static int cluster_id_cmp(const void *key, const void *el) {
+    int64_t k = *(const int64_t *)key;
+    int64_t e = *(const int64_t *)el;
+    return (k > e) - (k < e);
+}
+
+/* Index of node id within the id-sorted ids[], or CBM_NOT_FOUND. */
+static int cluster_id_index(const int64_t *ids, int n, int64_t id) {
+    const int64_t *hit = bsearch(&id, ids, (size_t)n, sizeof(int64_t), cluster_id_cmp);
+    return hit ? (int)(hit - ids) : CBM_NOT_FOUND;
+}
+
+/* Append `pkg` to a distinct package list (with a per-package count). */
+static void cluster_add_pkg(const char **pkgs, int *counts, int *count, int cap, const char *pkg) {
+    if (!pkg || !pkg[0]) {
+        return;
+    }
+    for (int i = 0; i < *count; i++) {
+        if (strcmp(pkgs[i], pkg) == 0) {
+            counts[i]++;
+            return;
+        }
+    }
+    if (*count < cap) {
+        pkgs[*count] = heap_strdup(pkg);
+        counts[*count] = 1;
+        (*count)++;
+    }
+}
+
+/* Build the cluster_info for one community c into *ci. */
+static void cluster_build_one(cbm_cluster_info_t *ci, int c, int n, const int *comm,
+                              const int *degree, const char **names, const char **qns, int members,
+                              double cohesion) {
+    memset(ci, 0, sizeof(*ci));
+    ci->id = c;
+    ci->members = members;
+    ci->cohesion = cohesion;
+
+    /* Top nodes by degree. */
+    int top_idx[CBM_CLUSTER_MAX_TOPNODES];
+    int top_deg[CBM_CLUSTER_MAX_TOPNODES];
+    int tn = 0;
+    for (int i = 0; i < n; i++) {
+        if (comm[i] != c) {
+            continue;
+        }
+        int d = degree[i];
+        int pos = tn;
+        while (pos > 0 && top_deg[pos - 1] < d) {
+            pos--;
+        }
+        if (pos < CBM_CLUSTER_MAX_TOPNODES) {
+            int last = (tn < CBM_CLUSTER_MAX_TOPNODES) ? tn : CBM_CLUSTER_MAX_TOPNODES - 1;
+            for (int k = last; k > pos; k--) {
+                top_idx[k] = top_idx[k - 1];
+                top_deg[k] = top_deg[k - 1];
+            }
+            top_idx[pos] = i;
+            top_deg[pos] = d;
+            if (tn < CBM_CLUSTER_MAX_TOPNODES) {
+                tn++;
+            }
+        }
+    }
+    if (tn > 0) {
+        ci->top_nodes = malloc((size_t)tn * sizeof(char *));
+        for (int i = 0; i < tn; i++) {
+            ci->top_nodes[i] = heap_strdup(names[top_idx[i]]);
+        }
+        ci->top_node_count = tn;
+    }
+
+    /* Distinct packages (+ dominant one as the label). */
+    const char *pkgs[CBM_CLUSTER_MAX_PKGS];
+    int pkg_counts[CBM_CLUSTER_MAX_PKGS];
+    int pc = 0;
+    for (int i = 0; i < n; i++) {
+        if (comm[i] == c) {
+            cluster_add_pkg(pkgs, pkg_counts, &pc, CBM_CLUSTER_MAX_PKGS,
+                            cbm_qn_to_top_package(qns[i]));
+        }
+    }
+    if (pc > 0) {
+        ci->packages = malloc((size_t)pc * sizeof(char *));
+        int best = 0;
+        for (int i = 0; i < pc; i++) {
+            ci->packages[i] = heap_strdup(pkgs[i]);
+            if (pkg_counts[i] > pkg_counts[best]) {
+                best = i;
+            }
+        }
+        ci->package_count = pc;
+        ci->label = heap_strdup(pkgs[best]);
+        for (int i = 0; i < pc; i++) {
+            safe_str_free(&pkgs[i]);
+        }
+    }
+    if (!ci->label) {
+        ci->label = heap_strdup(ci->top_node_count > 0 ? ci->top_nodes[0] : "cluster");
+    }
+
+    ci->edge_types = malloc(sizeof(char *));
+    ci->edge_types[0] = heap_strdup("CALLS");
+    ci->edge_type_count = 1;
+}
+
+/* Comparator for sorting community indices by descending member count. */
+typedef struct {
+    int comm;
+    int members;
+} cluster_rank_t;
+static int cluster_rank_cmp(const void *a, const void *b) {
+    const cluster_rank_t *ca = a;
+    const cluster_rank_t *cb = b;
+    return cb->members - ca->members;
+}
+
+static int arch_clusters(cbm_store_t *s, const char *project, cbm_architecture_info_t *out) {
+    /* 1. Load Function/Method/Class nodes, ordered by id for bsearch. */
+    const char *nsql = "SELECT id, name, qualified_name FROM nodes "
+                       "WHERE project=?1 AND label IN ('Function','Method','Class') "
+                       "ORDER BY id LIMIT ?2";
+    sqlite3_stmt *st = NULL;
+    if (sqlite3_prepare_v2(s->db, nsql, CBM_NOT_FOUND, &st, NULL) != SQLITE_OK) {
+        return CBM_STORE_OK; /* clusters are best-effort */
+    }
+    bind_text(st, SKIP_ONE, project);
+    sqlite3_bind_int(st, CBM_SZ_2, CBM_CLUSTER_NODE_CAP);
+    int cap = ST_INIT_CAP_8;
+    int n = 0;
+    int64_t *ids = malloc((size_t)cap * sizeof(int64_t));
+    const char **names = malloc((size_t)cap * sizeof(char *));
+    const char **qns = malloc((size_t)cap * sizeof(char *));
+    while (sqlite3_step(st) == SQLITE_ROW) {
+        if (n >= cap) {
+            cap *= ST_GROWTH;
+            ids = safe_realloc(ids, (size_t)cap * sizeof(int64_t));
+            names = safe_realloc(names, (size_t)cap * sizeof(char *));
+            qns = safe_realloc(qns, (size_t)cap * sizeof(char *));
+        }
+        ids[n] = sqlite3_column_int64(st, 0);
+        names[n] = heap_strdup((const char *)sqlite3_column_text(st, SKIP_ONE));
+        qns[n] = heap_strdup((const char *)sqlite3_column_text(st, CBM_SZ_2));
+        n++;
+    }
+    sqlite3_finalize(st);
+    if (n < CBM_CLUSTER_MIN_MEMBERS) {
+        for (int i = 0; i < n; i++) {
+            safe_str_free(&names[i]);
+            safe_str_free(&qns[i]);
+        }
+        free(ids);
+        free(names);
+        free(qns);
+        return CBM_STORE_OK;
+    }
+
+    /* 2. Load CALLS edges with both endpoints in the node set (store indices). */
+    cbm_louvain_edge_t *edges = malloc((size_t)n * sizeof(cbm_louvain_edge_t));
+    int *esrc = malloc((size_t)n * sizeof(int));
+    int *edst = malloc((size_t)n * sizeof(int));
+    int *degree = calloc((size_t)n, sizeof(int));
+    int ne = 0;
+    const char *esql = "SELECT source_id, target_id FROM edges WHERE project=?1 AND type='CALLS'";
+    if (sqlite3_prepare_v2(s->db, esql, CBM_NOT_FOUND, &st, NULL) == SQLITE_OK) {
+        int ecap = n;
+        bind_text(st, SKIP_ONE, project);
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            int si = cluster_id_index(ids, n, sqlite3_column_int64(st, 0));
+            int ti = cluster_id_index(ids, n, sqlite3_column_int64(st, SKIP_ONE));
+            if (si < 0 || ti < 0 || si == ti) {
+                continue;
+            }
+            if (ne >= ecap) {
+                ecap *= ST_GROWTH;
+                edges = safe_realloc(edges, (size_t)ecap * sizeof(cbm_louvain_edge_t));
+                esrc = safe_realloc(esrc, (size_t)ecap * sizeof(int));
+                edst = safe_realloc(edst, (size_t)ecap * sizeof(int));
+            }
+            edges[ne].src = ids[si];
+            edges[ne].dst = ids[ti];
+            esrc[ne] = si;
+            edst[ne] = ti;
+            degree[si]++;
+            degree[ti]++;
+            ne++;
+        }
+        sqlite3_finalize(st);
+    }
+
+    /* 3. Community detection. */
+    cbm_louvain_result_t *res = NULL;
+    int rn = 0;
+    int *comm = NULL;
+    int C = 0;
+    if (cbm_leiden(ids, n, edges, ne, 1.0, &res, &rn) == CBM_STORE_OK && res && rn == n) {
+        comm = malloc((size_t)n * sizeof(int));
+        for (int i = 0; i < n; i++) {
+            comm[i] = res[i].community;
+            if (comm[i] + 1 > C) {
+                C = comm[i] + 1;
+            }
+        }
+    }
+    free(res);
+
+    if (comm && C > 0) {
+        /* 4. Members + cohesion (internal vs boundary edges) per community. */
+        int *members = calloc((size_t)C, sizeof(int));
+        int *internal = calloc((size_t)C, sizeof(int));
+        int *boundary = calloc((size_t)C, sizeof(int));
+        for (int i = 0; i < n; i++) {
+            members[comm[i]]++;
+        }
+        for (int e = 0; e < ne; e++) {
+            int cs = comm[esrc[e]];
+            int cd = comm[edst[e]];
+            if (cs == cd) {
+                internal[cs]++;
+            } else {
+                boundary[cs]++;
+                boundary[cd]++;
+            }
+        }
+
+        /* 5. Rank communities by size, take the top N non-singletons. */
+        cluster_rank_t *rank = malloc((size_t)C * sizeof(cluster_rank_t));
+        for (int c = 0; c < C; c++) {
+            rank[c] = (cluster_rank_t){c, members[c]};
+        }
+        qsort(rank, (size_t)C, sizeof(cluster_rank_t), cluster_rank_cmp);
+
+        cbm_cluster_info_t *clusters =
+            malloc((size_t)CBM_CLUSTER_TOP_N * sizeof(cbm_cluster_info_t));
+        int cc = 0;
+        for (int r = 0; r < C && cc < CBM_CLUSTER_TOP_N; r++) {
+            int c = rank[r].comm;
+            if (members[c] < CBM_CLUSTER_MIN_MEMBERS) {
+                break; /* sorted desc — the rest are singletons too */
+            }
+            double denom = internal[c] + boundary[c];
+            double cohesion = denom > 0 ? (double)internal[c] / denom : 0.0;
+            cluster_build_one(&clusters[cc], c, n, comm, degree, names, qns, members[c], cohesion);
+            cc++;
+        }
+        out->clusters = clusters;
+        out->cluster_count = cc;
+
+        free(members);
+        free(internal);
+        free(boundary);
+        free(rank);
+    }
+
+    free(comm);
+    for (int i = 0; i < n; i++) {
+        safe_str_free(&names[i]);
+        safe_str_free(&qns[i]);
+    }
+    free(ids);
+    free(names);
+    free(qns);
+    free(edges);
+    free(esrc);
+    free(edst);
+    free(degree);
+    return CBM_STORE_OK;
+}
+
 /* ── GetArchitecture dispatch ──────────────────────────────────── */
 
 static bool want_aspect(const char **aspects, int aspect_count, const char *name) {
@@ -4690,6 +4970,12 @@ int cbm_store_get_architecture(cbm_store_t *s, const char *project, const char *
     }
     if (want_aspect(aspects, aspect_count, "file_tree")) {
         rc = arch_file_tree(s, project, out);
+        if (rc != CBM_STORE_OK) {
+            return rc;
+        }
+    }
+    if (want_aspect(aspects, aspect_count, "clusters")) {
+        rc = arch_clusters(s, project, out);
         if (rc != CBM_STORE_OK) {
             return rc;
         }
