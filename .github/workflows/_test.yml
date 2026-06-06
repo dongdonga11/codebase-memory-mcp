@@ -59,6 +59,7 @@ jobs:
             mingw-w64-clang-x86_64-compiler-rt
             mingw-w64-clang-x86_64-zlib
             make
+            git
 
       - name: Test
         shell: msys2 {0}
