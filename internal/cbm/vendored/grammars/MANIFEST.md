@@ -9,8 +9,8 @@ The grammars were originally vendored as bare `parser.c`+`scanner.c` with **no r
 
 ## Summary
 
-- Grammars: **157** — vendored-from-upstream: **140**, first-party/self-maintained: **12**, registry-disagreement: **5**
-- ABI distribution: **7×** ABI-13 **86×** ABI-14 **64×** ABI-15 (runtime ceiling is ABI 15; never vendor ABI 16 without a runtime upgrade)
+- Grammars: **156** — vendored-from-upstream: **139**, first-party/self-maintained: **12**, registry-disagreement: **5** (nim removed 2026-06-12, see below)
+- ABI distribution: **7×** ABI-13 **85×** ABI-14 **64×** ABI-15 (runtime ceiling is ABI 15; never vendor ABI 16 without a runtime upgrade)
 - Vendored copies missing LICENSE: **0** — all upstream LICENSE files restored 2026-06-11 (first-party grammars carry the project MIT license; `move` uses the Helix-listed upstream tzakian/tree-sitter-move MIT text, `zsh` uses georgeharker/tree-sitter-zsh MIT)
 - `verdict`: VERIFIED-BOTH = our source matches *both* registries; VERIFIED-NVIM/HELIX = matches one; registry-disagreement = registries name a different repo (listed separately).
 
@@ -132,7 +132,6 @@ Guarded by the `contract_all_grammars_in_graph` graph-breadth test in
 | meson | 15 | tree-sitter-grammars/tree-sitter-meson | `c84f3540624b` | VERIFIED-BOTH | ✅ |
 | nasm | 14 | naclsn/tree-sitter-nasm | `d1b3638d017f` | VERIFIED-BOTH | ✅ |
 | nickel | 15 | nickel-lang/tree-sitter-nickel | `b5b6cc3bc7b9` | VERIFIED-BOTH | ✅ |
-| nim | 14 | alaviss/tree-sitter-nim | `3878440d9398` | VERIFIED-BOTH | ✅ |
 | nix | 13 | nix-community/tree-sitter-nix | `eabf96807ea4` | VERIFIED-BOTH | ✅ |
 | objc | 14 | tree-sitter-grammars/tree-sitter-objc | `181a81b8f23a` | VERIFIED-NVIM | ✅ |
 | ocaml | 14 | tree-sitter/tree-sitter-ocaml | `5a979b3ec7f1` | VERIFIED-BOTH | ✅ |
@@ -213,14 +212,29 @@ These grammars are **authored and maintained in-house** (per the maintainer) —
 | qml | 14 | ✅ |
 | wolfram | 13 | ✅ |
 
-## Registry disagreement — needs a maintainer decision
+## Registry disagreement — RESOLVED (license audit 2026-06-12)
 
-Our resolved repo differs from what the registries list, and the two registries disagree with each other (or only one lists it). Pick the canonical source before vendoring.
+Our resolved repo differs from what the registries list, and the two registries disagree with each other (or only one lists it). **Maintainer decision recorded 2026-06-12** during the license re-audit: each grammar is pinned to the canonical source below, its license was verified against that repo via the GitHub API, and the matching LICENSE file is vendored in the grammar directory. When re-vendoring, use the canonical source column.
 
-| grammar | our resolution | nvim-treesitter | Helix |
-|---|---|---|---|
-| jinja2 | dbt-labs/tree-sitter-jinja2 | - | varpeti/tree-sitter-jinja2 |
-| just | casey/tree-sitter-just | IndianBoy42/tree-sitter-just | poliorcetics/tree-sitter-just |
-| move | tree-sitter-grammars/tree-sitter-move | - | tzakian/tree-sitter-move |
-| sshconfig | ObserverOfTime/tree-sitter-ssh-config | tree-sitter-grammars/tree-sitter-ssh-config | - |
-| zsh | tree-sitter-grammars/tree-sitter-zsh | georgeharker/tree-sitter-zsh | - |
+| grammar | canonical source (decided) | license (verified) | nvim-treesitter | Helix |
+|---|---|---|---|---|
+| jinja2 | dbt-labs/tree-sitter-jinja2 | Apache-2.0 | - | varpeti/tree-sitter-jinja2 |
+| just | casey/tree-sitter-just | Apache-2.0 | IndianBoy42/tree-sitter-just | poliorcetics/tree-sitter-just |
+| move | tzakian/tree-sitter-move | MIT | - | tzakian/tree-sitter-move |
+| sshconfig | ObserverOfTime/tree-sitter-ssh-config | MIT | tree-sitter-grammars/tree-sitter-ssh-config | - |
+| zsh | georgeharker/tree-sitter-zsh | MIT | tree-sitter-grammars/tree-sitter-zsh (404, gone) | - |
+
+Notes: the previously-resolved `tree-sitter-grammars/tree-sitter-move` and
+`tree-sitter-grammars/tree-sitter-zsh` repos no longer exist on GitHub (404),
+so `move` and `zsh` pin to the surviving registry-listed upstreams.
+
+## License re-audit conclusion (2026-06-12)
+
+Every grammar directory carries a LICENSE/COPYING file; every non-first-party
+grammar has a verified upstream with a permissive license (MIT except:
+clojure CC0-1.0, jinja2 + just Apache-2.0). First-party grammars carry the
+project MIT license. **Removal rule applied: the `nim` grammar
+(alaviss/tree-sitter-nim, MPL-2.0) was removed 2026-06-12 — MPL-2.0 is
+outside the permissive-only vendoring policy; it was also the largest
+vendored grammar (66 MB). All remaining grammars are permissive.**
+The CI ScanCode license gate enforces this state going forward.

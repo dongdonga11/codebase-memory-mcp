@@ -26,7 +26,7 @@ The core runtime headers in `internal/cbm/vendored/common/tree_sitter/`
 
 ## Tree-sitter Grammars
 
-159 pre-generated parsers are vendored in `internal/cbm/vendored/grammars/<lang>/`
+158 pre-generated parsers are vendored in `internal/cbm/vendored/grammars/<lang>/`
 (generated `parser.c` plus `scanner.c` where applicable, compiled statically).
 Each grammar is the work of its upstream authors and each grammar directory
 contains the upstream `LICENSE` file.
@@ -50,7 +50,6 @@ License summary:
 |---------|------|---------|---------|
 | SQLite 3 | `vendored/sqlite3/` | Public Domain | [sqlite.org](https://www.sqlite.org/) |
 | mimalloc | `vendored/mimalloc/` | MIT | [microsoft/mimalloc](https://github.com/microsoft/mimalloc) |
-| Mongoose | `vendored/mongoose/` | GPL-2.0-only (dual-licensed: GPLv2 or commercial) | [cesanta/mongoose](https://github.com/cesanta/mongoose) |
 | yyjson | `vendored/yyjson/` | MIT | [ibireme/yyjson](https://github.com/ibireme/yyjson) |
 | xxHash | `vendored/xxhash/` | BSD-2-Clause | [Cyan4973/xxHash](https://github.com/Cyan4973/xxHash) |
 | TRE | `vendored/tre/` | BSD-2-Clause | [laurikari/tre](https://github.com/laurikari/tre) |
@@ -60,8 +59,9 @@ License summary:
 | Verstable | `internal/cbm/vendored/verstable/` | MIT | [JacksonAllan/Verstable](https://github.com/JacksonAllan/Verstable) |
 | wyhash | `internal/cbm/vendored/wyhash/` | Unlicense (public domain) | [wangyi-fudan/wyhash](https://github.com/wangyi-fudan/wyhash) |
 
-Mongoose powers the embedded graph-UI HTTP server (`src/ui/http_server.c`)
-and is dual-licensed by Cesanta Software Limited.
+The graph-UI HTTP server is a first-party implementation
+(`src/ui/httpd.c` + `src/ui/http_server.c`) — no third-party HTTP library
+is used.
 
 ## Embedded Model Data
 

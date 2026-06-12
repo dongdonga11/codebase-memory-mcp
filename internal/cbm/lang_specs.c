@@ -79,7 +79,6 @@ extern const TSLanguage *tree_sitter_gleam(void);
 extern const TSLanguage *tree_sitter_powershell(void);
 extern const TSLanguage *tree_sitter_pascal(void);
 extern const TSLanguage *tree_sitter_d(void);
-extern const TSLanguage *tree_sitter_nim(void);
 extern const TSLanguage *tree_sitter_scheme(void);
 extern const TSLanguage *tree_sitter_fennel(void);
 extern const TSLanguage *tree_sitter_fish(void);
@@ -1057,27 +1056,6 @@ static const char *pascal_assign_types[] = {"assignment", NULL};
 static const char *pascal_throw_types[] = {"raise", NULL};
 static const char *pascal_module_types[] = {"source_file", NULL};
 static const char *d_module_types[] = {"source_file", NULL};
-static const char *nim_func_types[] = {
-    "proc_declaration",     "func_declaration",  "method_declaration",    "iterator_declaration",
-    "template_declaration", "macro_declaration", "converter_declaration", NULL};
-static const char *nim_class_types[] = {"type_declaration", "object_declaration",
-                                        "enum_declaration", "concept_declaration", NULL};
-static const char *nim_field_types[] = {"field_declaration", NULL};
-static const char *nim_call_types[] = {"call", "dot_generic_call", NULL};
-static const char *nim_import_types[] = {"import_statement",
-                                         "import_from_statement",
-                                         "include_statement",
-                                         "export_statement",
-                                         "import",
-                                         "include",
-                                         NULL};
-static const char *nim_branch_types[] = {"if_statement", "for",           "while", "case",
-                                         "try",          "except_clause", "when",  NULL};
-static const char *nim_var_types[] = {"var_section", "let_section", "const_section", NULL};
-static const char *nim_assign_types[] = {"assignment", NULL};
-static const char *nim_throw_types[] = {"raise_statement", NULL};
-static const char *nim_decorator_types[] = {"pragma", NULL};
-static const char *nim_module_types[] = {"source_file", NULL};
 static const char *scheme_call_types[] = {"list", NULL};
 static const char *scheme_var_types[] = {"symbol", NULL};
 static const char *scheme_module_types[] = {"program", NULL};
@@ -2052,12 +2030,6 @@ static const CBMLangSpec lang_specs[CBM_LANG_COUNT] = {
                         d_call_types, d_import_types, empty_types, d_branch_types, d_var_types,
                         d_assign_types, d_throw_types, NULL, empty_types, NULL, NULL, tree_sitter_d,
                         NULL},
-
-    // CBM_LANG_NIM
-    [CBM_LANG_NIM] = {CBM_LANG_NIM, nim_func_types, nim_class_types, nim_field_types,
-                      nim_module_types, nim_call_types, nim_import_types, empty_types,
-                      nim_branch_types, nim_var_types, nim_assign_types, nim_throw_types, NULL,
-                      nim_decorator_types, NULL, NULL, tree_sitter_nim, NULL},
 
     // CBM_LANG_SCHEME
     [CBM_LANG_SCHEME] = {CBM_LANG_SCHEME, empty_types, empty_types, empty_types,

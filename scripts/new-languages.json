@@ -102,21 +102,6 @@
     "module_root": "source_file"
   },
   {
-    "name": "nim",
-    "enum": "NIM",
-    "display": "Nim",
-    "ts_func": "tree_sitter_nim",
-    "repo": "https://github.com/alaviss/tree-sitter-nim",
-    "subdir": "",
-    "extensions": [
-      ".nim",
-      ".nims"
-    ],
-    "filenames": [],
-    "has_scanner": true,
-    "module_root": "source_file"
-  },
-  {
     "name": "scheme",
     "enum": "SCHEME",
     "display": "Scheme",

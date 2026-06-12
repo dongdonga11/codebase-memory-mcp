@@ -461,10 +461,8 @@ static const ext_entry_t EXT_TABLE[] = {
     {".ncl", CBM_LANG_NICKEL},
 
     /* Nim */
-    {".nim", CBM_LANG_NIM},
 
     /* Nim */
-    {".nims", CBM_LANG_NIM},
 
     /* Squirrel */
     {".nut", CBM_LANG_SQUIRREL},

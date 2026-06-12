@@ -230,8 +230,8 @@ static bool extract_crashes(const char *content, CBMLanguage lang, const char *r
         return false; /* cannot fork — do not flag a crash we can't observe */
     }
     if (pid == 0) {
-        CBMFileResult *r = cbm_extract_file(content, (int)strlen(content), lang, "lc", relpath, 0,
-                                            NULL, NULL);
+        CBMFileResult *r =
+            cbm_extract_file(content, (int)strlen(content), lang, "lc", relpath, 0, NULL, NULL);
         if (r) {
             cbm_free_result(r);
         }
@@ -354,10 +354,10 @@ static LangMetrics lang_metrics(const LangFile *files, int nfiles) {
 
 /* Go: same-package function call. */
 TEST(contract_go_calls) {
-    static const LangFile f[] = {
-        {"svc.go", "package svc\n\n"
-                   "func helper(x int) int { return x + 1 }\n\n"
-                   "func run(y int) int {\n    return helper(helper(y))\n}\n"}};
+    static const LangFile f[] = {{"svc.go",
+                                  "package svc\n\n"
+                                  "func helper(x int) int { return x + 1 }\n\n"
+                                  "func run(y int) int {\n    return helper(helper(y))\n}\n"}};
     LangMetrics m = lang_metrics(f, 1);
     ASSERT_TRUE(m.ok);
     ASSERT_TRUE(m.calls >= 1);
@@ -383,12 +383,11 @@ TEST(contract_rust_methods) {
 
 /* C#: class with methods + intra-class call. */
 TEST(contract_csharp_methods) {
-    static const LangFile f[] = {
-        {"Calc.cs", "namespace App {\n"
-                    "    class Calc {\n"
-                    "        public int Helper(int x) { return x + 1; }\n"
-                    "        public int Run(int y) { return Helper(y); }\n"
-                    "    }\n}\n"}};
+    static const LangFile f[] = {{"Calc.cs", "namespace App {\n"
+                                             "    class Calc {\n"
+                                             "        public int Helper(int x) { return x + 1; }\n"
+                                             "        public int Run(int y) { return Helper(y); }\n"
+                                             "    }\n}\n"}};
     LangMetrics m = lang_metrics(f, 1);
     ASSERT_TRUE(m.ok);
     ASSERT_TRUE(m.calls >= 1);
@@ -413,10 +412,9 @@ TEST(contract_php_methods) {
 
 /* Java: class with methods + intra-class call (single file — no crash risk). */
 TEST(contract_java_methods) {
-    static const LangFile f[] = {
-        {"Calc.java", "package app;\n\nclass Calc {\n"
-                      "    int helper(int x) { return x + 1; }\n"
-                      "    int run(int y) { return helper(y); }\n}\n"}};
+    static const LangFile f[] = {{"Calc.java", "package app;\n\nclass Calc {\n"
+                                               "    int helper(int x) { return x + 1; }\n"
+                                               "    int run(int y) { return helper(y); }\n}\n"}};
     LangMetrics m = lang_metrics(f, 1);
     ASSERT_TRUE(m.ok);
     ASSERT_TRUE(m.calls >= 1);
@@ -427,10 +425,9 @@ TEST(contract_java_methods) {
 
 /* Kotlin: class with methods + intra-class call. */
 TEST(contract_kotlin_methods) {
-    static const LangFile f[] = {
-        {"Calc.kt", "class Calc {\n"
-                    "    fun helper(x: Int): Int = x + 1\n"
-                    "    fun run(y: Int): Int = helper(y)\n}\n"}};
+    static const LangFile f[] = {{"Calc.kt", "class Calc {\n"
+                                             "    fun helper(x: Int): Int = x + 1\n"
+                                             "    fun run(y: Int): Int = helper(y)\n}\n"}};
     LangMetrics m = lang_metrics(f, 1);
     ASSERT_TRUE(m.ok);
     ASSERT_TRUE(m.calls >= 1);
@@ -491,7 +488,7 @@ enum { GRAMMAR_BREADTH_MAX = 300, GRAMMAR_PATH_BUF = 96 };
  *   gitattributes — same: consumed as a git metadata file
  *   sshconfig     — discover detects ssh_config / .ssh/config, not the generic name "config" */
 static bool grammar_graph_allowlisted(const char *name) {
-    static const char *allow[] = {"nasm",      "dotenv",        "jsdoc", "regex",
+    static const char *allow[] = {"nasm",      "dotenv",        "jsdoc",     "regex",
                                   "gitignore", "gitattributes", "sshconfig", NULL};
     for (int i = 0; allow[i]; i++) {
         if (strcmp(allow[i], name) == 0) {
@@ -590,7 +587,8 @@ TEST(contract_all_grammars_in_graph) {
         }
     }
     fprintf(stderr,
-            "  [GRAPH-BREADTH] checked=%d not_indexed=%d below_min=%d total_nodes=%d (of %d grammars)\n",
+            "  [GRAPH-BREADTH] checked=%d not_indexed=%d below_min=%d total_nodes=%d (of %d "
+            "grammars)\n",
             checked, not_indexed, below_min, total_nodes, n);
 
     lang_cleanup(&lp, store);
@@ -619,126 +617,181 @@ typedef struct {
 
 static const CallCase CALL_CASES[] = {
     {"ruby", "a.rb", "def helper\n  42\nend\n\ndef run\n  helper()\nend\n", true, NULL},
-    {"lua", "a.lua", "function helper(x)\n  return x + 1\nend\n\nfunction run()\n  return helper(41)\nend\n",
-     true, NULL},
+    {"lua", "a.lua",
+     "function helper(x)\n  return x + 1\nend\n\nfunction run()\n  return helper(41)\nend\n", true,
+     NULL},
     {"swift", "a.swift",
-     "func helper() -> Int {\n    return 42\n}\n\nfunc run() {\n    let value = helper()\n    print(value)\n}\n",
+     "func helper() -> Int {\n    return 42\n}\n\nfunc run() {\n    let value = helper()\n    "
+     "print(value)\n}\n",
      true, NULL},
-    {"dart", "a.dart", "void helper() {\n  print('helper');\n}\n\nvoid run() {\n  helper();\n}\n", false,
-     "selector call node carries no callee field; no dart branch in extract_calls.c"},
-    {"scala", "a.scala", "def helper(): Int =\n  21 + 21\n\ndef run(): Int =\n  helper() * 2\n", true, NULL},
+    {"dart", "a.dart", "void helper() {\n  print('helper');\n}\n\nvoid run() {\n  helper();\n}\n",
+     false, "selector call node carries no callee field; no dart branch in extract_calls.c"},
+    {"scala", "a.scala", "def helper(): Int =\n  21 + 21\n\ndef run(): Int =\n  helper() * 2\n",
+     true, NULL},
     {"bash", "a.sh", "helper() {\n  echo \"doing work\"\n}\n\nrun() {\n  helper\n}\n", true, NULL},
     {"perl", "a.pl",
-     "#!/usr/bin/perl\nuse strict;\nuse warnings;\n\nsub helper {\n    my ($name) = @_;\n    return \"Hello, $name\";\n}\n\nsub run {\n    my $greeting = helper(\"world\");\n    print \"$greeting\\n\";\n    return;\n}\n\nrun();\n",
+     "#!/usr/bin/perl\nuse strict;\nuse warnings;\n\nsub helper {\n    my ($name) = @_;\n    "
+     "return \"Hello, $name\";\n}\n\nsub run {\n    my $greeting = helper(\"world\");\n    print "
+     "\"$greeting\\n\";\n    return;\n}\n\nrun();\n",
      true, NULL},
-    {"r", "a.R", "helper <- function(x) {\n  x * 2\n}\n\nrun <- function() {\n  helper(21)\n}\n", true, NULL},
-    {"julia", "a.jl", "function helper(x)\n    return x + 1\nend\n\nfunction run(n)\n    return helper(n)\nend\n",
+    {"r", "a.R", "helper <- function(x) {\n  x * 2\n}\n\nrun <- function() {\n  helper(21)\n}\n",
+     true, NULL},
+    {"julia", "a.jl",
+     "function helper(x)\n    return x + 1\nend\n\nfunction run(n)\n    return helper(n)\nend\n",
      true, NULL},
     {"zig", "a.zig", "fn helper() void {}\n\npub fn run() void {\n    helper();\n}\n", true, NULL},
-    {"nim", "a.nim", "proc helper(): int =\n  result = 42\n\nproc run() =\n  let value = helper()\n  echo value\n",
-     true, NULL},
     {"gdscript", "a.gd",
-     "func helper() -> int:\n\treturn 42\n\n\nfunc run() -> void:\n\tvar value = helper()\n\tprint(value)\n",
+     "func helper() -> int:\n\treturn 42\n\n\nfunc run() -> void:\n\tvar value = "
+     "helper()\n\tprint(value)\n",
      true, NULL},
-    {"groovy", "a.groovy", "def helper() {\n    println \"helping\"\n}\n\ndef run() {\n    helper()\n}\n",
-     false,
-     "function_call callee not on a function/name field and first child is not 'identifier'; no groovy branch in extract_calls.c"},
+    {"groovy", "a.groovy",
+     "def helper() {\n    println \"helping\"\n}\n\ndef run() {\n    helper()\n}\n", false,
+     "function_call callee not on a function/name field and first child is not 'identifier'; no "
+     "groovy branch in extract_calls.c"},
     {"elixir", "a.ex",
-     "defmodule Sample do\n  def helper(x) do\n    x + 1\n  end\n\n  def run do\n    helper(41)\n  end\nend\n",
+     "defmodule Sample do\n  def helper(x) do\n    x + 1\n  end\n\n  def run do\n    helper(41)\n  "
+     "end\nend\n",
      true, NULL},
     {"ocaml", "a.ml",
-     "let helper x = x + 1\n\nlet run () =\n  let result = helper 41 in\n  print_int result\n", true, NULL},
-    {"gleam", "a.gleam", "pub fn helper(x: Int) -> Int {\n  x + 1\n}\n\npub fn run() -> Int {\n  helper(2)\n}\n",
+     "let helper x = x + 1\n\nlet run () =\n  let result = helper 41 in\n  print_int result\n",
      true, NULL},
+    {"gleam", "a.gleam",
+     "pub fn helper(x: Int) -> Int {\n  x + 1\n}\n\npub fn run() -> Int {\n  helper(2)\n}\n", true,
+     NULL},
     {"crystal", "a.cr",
-     "def helper(name : String) : String\n  \"hello, #{name}\"\nend\n\ndef run\n  message = helper(\"world\")\n  puts message\nend\n\nrun\n",
+     "def helper(name : String) : String\n  \"hello, #{name}\"\nend\n\ndef run\n  message = "
+     "helper(\"world\")\n  puts message\nend\n\nrun\n",
      true, NULL},
-    {"haskell", "a.hs", "helper :: Int -> Int\nhelper x = x + 1\n\nrun :: Int\nrun = helper 41\n", true, NULL},
+    {"haskell", "a.hs", "helper :: Int -> Int\nhelper x = x + 1\n\nrun :: Int\nrun = helper 41\n",
+     true, NULL},
     {"fortran", "a.f90",
-     "function helper(x) result(y)\n    integer, intent(in) :: x\n    integer :: y\n    y = x + 1\nend function helper\n\nfunction run(n) result(total)\n    integer, intent(in) :: n\n    integer :: total\n    total = helper(n) + helper(n + 1)\nend function run\n",
+     "function helper(x) result(y)\n    integer, intent(in) :: x\n    integer :: y\n    y = x + "
+     "1\nend function helper\n\nfunction run(n) result(total)\n    integer, intent(in) :: n\n    "
+     "integer :: total\n    total = helper(n) + helper(n + 1)\nend function run\n",
      true, NULL},
     {"pascal", "a.pas",
-     "procedure Helper(x: Integer);\nbegin\n  WriteLn(x);\nend;\n\nprocedure Run;\nbegin\n  Helper(1);\nend;\n",
+     "procedure Helper(x: Integer);\nbegin\n  WriteLn(x);\nend;\n\nprocedure Run;\nbegin\n  "
+     "Helper(1);\nend;\n",
      true, NULL},
     {"tcl", "a.tcl",
-     "proc helper {x} {\n    return [expr {$x * 2}]\n}\n\nproc run {} {\n    set result [helper 21]\n    puts $result\n}\n",
+     "proc helper {x} {\n    return [expr {$x * 2}]\n}\n\nproc run {} {\n    set result [helper "
+     "21]\n    puts $result\n}\n",
      true, NULL},
     {"solidity", "a.sol",
-     "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\nfunction helper(uint256 x) pure returns (uint256) {\n    return x + 1;\n}\n\nfunction run(uint256 y) pure returns (uint256) {\n    return helper(y);\n}\n",
+     "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\nfunction helper(uint256 x) pure "
+     "returns (uint256) {\n    return x + 1;\n}\n\nfunction run(uint256 y) pure returns (uint256) "
+     "{\n    return helper(y);\n}\n",
      false,
-     "call_expression callee not resolved by generic field/first-child extraction; no solidity branch in extract_calls.c"},
-    {"commonlisp", "a.lisp", "(defun helper (x)\n  (* x 2))\n\n(defun run ()\n  (helper 21))\n", false,
+     "call_expression callee not resolved by generic field/first-child extraction; no solidity "
+     "branch in extract_calls.c"},
+    {"commonlisp", "a.lisp", "(defun helper (x)\n  (* x 2))\n\n(defun run ()\n  (helper 21))\n",
+     false,
      "list_lit call head is sym_lit not identifier; no commonlisp branch in extract_callee_name"},
-    {"powershell", "a.ps1", "function helper {\n    Write-Output 'hi'\n}\n\nfunction run {\n    helper\n}\n",
-     false,
-     "command node child is command_name not identifier; extract_scripting_callee handles MATLAB not PowerShell"},
+    {"powershell", "a.ps1",
+     "function helper {\n    Write-Output 'hi'\n}\n\nfunction run {\n    helper\n}\n", false,
+     "command node child is command_name not identifier; extract_scripting_callee handles MATLAB "
+     "not PowerShell"},
 
     /* The remaining code grammars (extends CALLS-edge breadth to ALL 66 code
      * grammars). expected_calls=false marks an already-root-caused gap. */
     {"ada", "a.adb",
-     "procedure Run is\n   procedure Helper is\n   begin\n      null;\n   end Helper;\nbegin\n   Helper;\nend Run;\n",
+     "procedure Run is\n   procedure Helper is\n   begin\n      null;\n   end Helper;\nbegin\n   "
+     "Helper;\nend Run;\n",
      false,
-     "procedure_call_statement callee did not resolve to a CALLS edge (empirically confirmed gap; no Ada branch in extract_calls.c)"},
+     "procedure_call_statement callee did not resolve to a CALLS edge (empirically confirmed gap; "
+     "no Ada branch in extract_calls.c)"},
     {"apex", "A.cls",
-     "public class A {\n    static void helper() {\n        System.debug('helper');\n    }\n\n    static void run() {\n        helper();\n    }\n}\n",
+     "public class A {\n    static void helper() {\n        System.debug('helper');\n    }\n\n    "
+     "static void run() {\n        helper();\n    }\n}\n",
      true, NULL},
-    {"awk", "a.awk", "function helper(x) {\n    return x + 1\n}\n\nfunction run() {\n    print helper(3)\n}\n",
+    {"awk", "a.awk",
+     "function helper(x) {\n    return x + 1\n}\n\nfunction run() {\n    print helper(3)\n}\n",
      true, NULL},
-    {"cairo", "a.cairo", "fn helper(x: felt252) -> felt252 {\n    x + 1\n}\n\nfn run() -> felt252 {\n    helper(41)\n}\n",
+    {"cairo", "a.cairo",
+     "fn helper(x: felt252) -> felt252 {\n    x + 1\n}\n\nfn run() -> felt252 {\n    "
+     "helper(41)\n}\n",
      true, NULL},
     {"clojure", "a.clj", "(defn helper [] 42)\n\n(defn run [] (helper))\n", false,
-     "lisp: call is a list_lit whose head is a sym_lit (not a field, not a first-child 'identifier'); no lisp branch in extract_callee_name"},
+     "lisp: call is a list_lit whose head is a sym_lit (not a field, not a first-child "
+     "'identifier'); no lisp branch in extract_callee_name"},
     {"cuda", "a.cu",
-     "__device__ int helper(int x) {\n    return x * 2;\n}\n\n__global__ void run(int *out) {\n    out[0] = helper(21);\n}\n",
+     "__device__ int helper(int x) {\n    return x * 2;\n}\n\n__global__ void run(int *out) {\n    "
+     "out[0] = helper(21);\n}\n",
      true, NULL},
-    {"d", "a.d", "int helper(int x)\n{\n    return x + 1;\n}\n\nvoid run()\n{\n    int y = helper(41);\n}\n", true,
-     NULL},
+    {"d", "a.d",
+     "int helper(int x)\n{\n    return x + 1;\n}\n\nvoid run()\n{\n    int y = helper(41);\n}\n",
+     true, NULL},
     {"emacslisp", "a.el",
-     "(defun helper (x)\n  \"Add one to X.\"\n  (+ x 1))\n\n(defun run ()\n  \"Call helper.\"\n  (helper 41))\n",
-     false, "lisp: call is a 'list' whose head is a 'symbol'; generic resolver wants a first-child 'identifier'"},
-    {"erlang", "a.erl", "-module(a).\n-export([run/0]).\n\nhelper(X) -> X + 1.\n\nrun() -> helper(41).\n", true,
-     NULL},
+     "(defun helper (x)\n  \"Add one to X.\"\n  (+ x 1))\n\n(defun run ()\n  \"Call helper.\"\n  "
+     "(helper 41))\n",
+     false,
+     "lisp: call is a 'list' whose head is a 'symbol'; generic resolver wants a first-child "
+     "'identifier'"},
+    {"erlang", "a.erl",
+     "-module(a).\n-export([run/0]).\n\nhelper(X) -> X + 1.\n\nrun() -> helper(41).\n", true, NULL},
     {"fennel", "a.fnl", "(fn helper [x]\n  (+ x 1))\n\n(fn run [n]\n  (helper n))\n", false,
      "lisp: call is a 'list' whose head is a 'symbol'; no fennel branch in extract_callee_name"},
-    {"fish", "a.fish", "function helper\n    echo \"helping\"\nend\n\nfunction run\n    helper\nend\n", true, NULL},
+    {"fish", "a.fish",
+     "function helper\n    echo \"helping\"\nend\n\nfunction run\n    helper\nend\n", true, NULL},
     {"fsharp", "a.fs", "let helper x = x + 1\n\nlet run () = helper 41\n", false,
-     "application_expression callee head is a 'long_identifier_or_op' wrapper, not a bare identifier/field; no fsharp callee branch"},
-    {"glsl", "a.glsl", "float helper(float x) {\n    return x * 2.0;\n}\n\nvoid run() {\n    float y = helper(3.0);\n}\n",
+     "application_expression callee head is a 'long_identifier_or_op' wrapper, not a bare "
+     "identifier/field; no fsharp callee branch"},
+    {"glsl", "a.glsl",
+     "float helper(float x) {\n    return x * 2.0;\n}\n\nvoid run() {\n    float y = "
+     "helper(3.0);\n}\n",
      true, NULL},
-    {"hare", "a.ha", "fn helper() void = void;\n\nexport fn run() void = {\n\thelper();\n};\n", true, NULL},
+    {"hare", "a.ha", "fn helper() void = void;\n\nexport fn run() void = {\n\thelper();\n};\n",
+     true, NULL},
     {"hlsl", "a.hlsl",
-     "float helper(float x)\n{\n    return x * 2.0;\n}\n\nfloat run(float v)\n{\n    return helper(v) + 1.0;\n}\n",
+     "float helper(float x)\n{\n    return x * 2.0;\n}\n\nfloat run(float v)\n{\n    return "
+     "helper(v) + 1.0;\n}\n",
      true, NULL},
     {"ispc", "a.ispc",
-     "static inline uniform float helper(uniform float x) {\n    return x * 2.0f;\n}\n\nexport void run(uniform float in[], uniform float out[], uniform int n) {\n    foreach (i = 0 ... n) {\n        out[i] = helper(in[i]);\n    }\n}\n",
+     "static inline uniform float helper(uniform float x) {\n    return x * 2.0f;\n}\n\nexport "
+     "void run(uniform float in[], uniform float out[], uniform int n) {\n    foreach (i = 0 ... "
+     "n) {\n        out[i] = helper(in[i]);\n    }\n}\n",
      true, NULL},
-    {"luau", "a.luau", "function helper(x)\n\treturn x + 1\nend\n\nfunction run(n)\n\treturn helper(n) * 2\nend\n",
+    {"luau", "a.luau",
+     "function helper(x)\n\treturn x + 1\nend\n\nfunction run(n)\n\treturn helper(n) * 2\nend\n",
      true, NULL},
-    {"matlab", "a.m", "function run()\n    helper();\nend\n\nfunction helper()\n    disp('hi');\nend\n", true,
+    {"matlab", "a.m",
+     "function run()\n    helper();\nend\n\nfunction helper()\n    disp('hi');\nend\n", true,
      "watch: .m extension collides with Objective-C under discover (content-sniffed)"},
     {"odin", "a.odin",
-     "package fixture\n\nhelper :: proc() -> int {\n\treturn 42\n}\n\nrun :: proc() {\n\tx := helper()\n\t_ = x\n}\n",
+     "package fixture\n\nhelper :: proc() -> int {\n\treturn 42\n}\n\nrun :: proc() {\n\tx := "
+     "helper()\n\t_ = x\n}\n",
      true, NULL},
-    {"racket", "a.rkt", "#lang racket\n\n(define (helper x)\n  (+ x 1))\n\n(define (run)\n  (helper 41))\n", false,
-     "lisp: call is a 'list' whose head is a 'symbol' (grammar has no 'identifier' node); no racket branch"},
+    {"racket", "a.rkt",
+     "#lang racket\n\n(define (helper x)\n  (+ x 1))\n\n(define (run)\n  (helper 41))\n", false,
+     "lisp: call is a 'list' whose head is a 'symbol' (grammar has no 'identifier' node); no "
+     "racket branch"},
     {"rescript", "a.res", "let helper = (x) => x + 1\n\nlet run = () => helper(41)\n", false,
-     "call_expression 'function' field is a 'value_identifier' (not in extract_callee_from_fields' accepted type list)"},
+     "call_expression 'function' field is a 'value_identifier' (not in extract_callee_from_fields' "
+     "accepted type list)"},
     {"scheme", "a.scm", "(define (helper x)\n  (* x 2))\n\n(define (run)\n  (helper 21))\n", false,
      "lisp: call is a 'list' whose head is a 'symbol'; no scheme branch in extract_callee_name"},
-    {"slang", "a.slang", "void helper()\n{\n    int x = 1;\n}\n\nvoid run()\n{\n    helper();\n}\n", true, NULL},
-    {"squirrel", "a.nut", "function helper(x) {\n    return x + 1;\n}\n\nfunction run() {\n    return helper(41);\n}\n",
+    {"slang", "a.slang", "void helper()\n{\n    int x = 1;\n}\n\nvoid run()\n{\n    helper();\n}\n",
      true, NULL},
-    {"starlark", "a.bzl", "def helper(x):\n    return x + 1\n\ndef run():\n    return helper(41)\n", true, NULL},
+    {"squirrel", "a.nut",
+     "function helper(x) {\n    return x + 1;\n}\n\nfunction run() {\n    return helper(41);\n}\n",
+     true, NULL},
+    {"starlark", "a.bzl", "def helper(x):\n    return x + 1\n\ndef run():\n    return helper(41)\n",
+     true, NULL},
     {"sway", "a.sw", "fn helper() {}\n\nfn run() {\n    helper();\n}\n", true, NULL},
     {"teal", "a.tl",
-     "local function helper(x: number): number\n   return x + 1\nend\n\nlocal function run(): number\n   return helper(41)\nend\n",
+     "local function helper(x: number): number\n   return x + 1\nend\n\nlocal function run(): "
+     "number\n   return helper(41)\nend\n",
      true, NULL},
     {"vimscript", "a.vim",
-     "function! Helper() abort\n  return 1\nendfunction\n\nfunction! Run() abort\n  call Helper()\nendfunction\n",
+     "function! Helper() abort\n  return 1\nendfunction\n\nfunction! Run() abort\n  call "
+     "Helper()\nendfunction\n",
      true, NULL},
-    {"wgsl", "a.wgsl", "fn helper() -> f32 {\n  return 1.0;\n}\n\nfn run() -> f32 {\n  return helper();\n}\n", false,
-     "callee nested in type_constructor_or_function_call_expression -> type_declaration -> identifier; no field, first child is type_declaration"},
-    {"zsh", "a.zsh", "function helper {\n  print \"helping\"\n}\n\nfunction run {\n  helper\n}\n", true, NULL},
+    {"wgsl", "a.wgsl",
+     "fn helper() -> f32 {\n  return 1.0;\n}\n\nfn run() -> f32 {\n  return helper();\n}\n", false,
+     "callee nested in type_constructor_or_function_call_expression -> type_declaration -> "
+     "identifier; no field, first child is type_declaration"},
+    {"zsh", "a.zsh", "function helper {\n  print \"helping\"\n}\n\nfunction run {\n  helper\n}\n",
+     true, NULL},
 };
 
 TEST(contract_calls_breadth) {
@@ -759,8 +812,9 @@ TEST(contract_calls_breadth) {
             failures++;
         }
     }
-    fprintf(stderr, "  [CALLS-BREADTH] %d langs: %d FAILURES (each = a language that does not "
-                    "resolve a same-file CALLS edge)\n",
+    fprintf(stderr,
+            "  [CALLS-BREADTH] %d langs: %d FAILURES (each = a language that does not "
+            "resolve a same-file CALLS edge)\n",
             n, failures);
     ASSERT_EQ(failures, 0);
     PASS();
@@ -794,13 +848,12 @@ TEST(contract_calls_breadth) {
  * when an edge contract fails, so a regression shows exactly what WAS
  * produced instead of the missing type. */
 static const char *ALL_EDGE_TYPES[] = {
-    "CALLS",        "CONFIGURES",     "CONTAINS_FILE", "CONTAINS_FOLDER",
-    "DATA_FLOWS",   "DECORATES",      "DEFINES",       "DEFINES_METHOD",
-    "DEPENDS_ON",   "FILE_CHANGES_WITH", "GRAPHQL_CALLS", "GRPC_CALLS",
-    "HANDLES",      "HTTP_CALLS",     "IMPLEMENTS",    "IMPORTS",
-    "INHERITS",     "INFRA_MAPS",     "OVERRIDE",      "SEMANTICALLY_RELATED",
-    "SIMILAR_TO",   "TESTS_FILE",     "TESTS",         "TRPC_CALLS",
-    "USAGE",        "ASYNC_CALLS",    NULL};
+    "CALLS",         "CONFIGURES", "CONTAINS_FILE",  "CONTAINS_FOLDER", "DATA_FLOWS",
+    "DECORATES",     "DEFINES",    "DEFINES_METHOD", "DEPENDS_ON",      "FILE_CHANGES_WITH",
+    "GRAPHQL_CALLS", "GRPC_CALLS", "HANDLES",        "HTTP_CALLS",      "IMPLEMENTS",
+    "IMPORTS",       "INHERITS",   "INFRA_MAPS",     "OVERRIDE",        "SEMANTICALLY_RELATED",
+    "SIMILAR_TO",    "TESTS_FILE", "TESTS",          "TRPC_CALLS",      "USAGE",
+    "ASYNC_CALLS",   NULL};
 
 static void dump_edge_histogram(cbm_store_t *store, const char *project) {
     if (!store) {
@@ -835,21 +888,21 @@ static int edge_present(const LangFile *files, int nfiles, const char *edge, int
 
 /* DEFINES — File -> definition, once per top-level def (purely structural). */
 TEST(contract_edge_defines) {
-    static const LangFile f[] = {
-        {"main.py", "def greet(name):\n    return 'Hello ' + name\n\n\n"
-                    "def farewell(name):\n    return 'Goodbye ' + name\n\n\n"
-                    "def main():\n    msg = greet('World')\n"
-                    "    msg2 = farewell('World')\n    print(msg, msg2)\n"}};
+    static const LangFile f[] = {{"main.py",
+                                  "def greet(name):\n    return 'Hello ' + name\n\n\n"
+                                  "def farewell(name):\n    return 'Goodbye ' + name\n\n\n"
+                                  "def main():\n    msg = greet('World')\n"
+                                  "    msg2 = farewell('World')\n    print(msg, msg2)\n"}};
     ASSERT_TRUE(edge_present(f, 1, "DEFINES", 3)); /* greet, farewell, main */
     PASS();
 }
 
 /* DEFINES_METHOD — Class -> Method when the method's parent_class resolves. */
 TEST(contract_edge_defines_method) {
-    static const LangFile f[] = {
-        {"greeter.py", "class Greeter:\n    def hello(self):\n        return \"hi\"\n\n"
-                       "    def bye(self):\n        return \"bye\"\n\n\n"
-                       "def main():\n    g = Greeter()\n    return g.hello()\n"}};
+    static const LangFile f[] = {{"greeter.py",
+                                  "class Greeter:\n    def hello(self):\n        return \"hi\"\n\n"
+                                  "    def bye(self):\n        return \"bye\"\n\n\n"
+                                  "def main():\n    g = Greeter()\n    return g.hello()\n"}};
     ASSERT_TRUE(edge_present(f, 1, "DEFINES_METHOD", 1)); /* Greeter.hello, Greeter.bye */
     PASS();
 }
@@ -883,30 +936,30 @@ TEST(contract_edge_inherits) {
 
 /* IMPLEMENTS — Rust `impl Trait for Struct` (Java/TS `implements` -> INHERITS). */
 TEST(contract_edge_implements) {
-    static const LangFile f[] = {
-        {"shapes.rs", "trait Greet {\n    fn hello(&self) -> String;\n}\n\n"
-                      "trait Area {\n    fn area(&self) -> f64;\n}\n\n"
-                      "struct English;\n\nstruct Square {\n    side: f64,\n}\n\n"
-                      "impl Greet for English {\n    fn hello(&self) -> String {\n"
-                      "        String::from(\"hi\")\n    }\n}\n\n"
-                      "impl Area for Square {\n    fn area(&self) -> f64 {\n"
-                      "        self.side * self.side\n    }\n}\n\n"
-                      "impl Greet for Square {\n    fn hello(&self) -> String {\n"
-                      "        String::from(\"square\")\n    }\n}\n"}};
+    static const LangFile f[] = {{"shapes.rs",
+                                  "trait Greet {\n    fn hello(&self) -> String;\n}\n\n"
+                                  "trait Area {\n    fn area(&self) -> f64;\n}\n\n"
+                                  "struct English;\n\nstruct Square {\n    side: f64,\n}\n\n"
+                                  "impl Greet for English {\n    fn hello(&self) -> String {\n"
+                                  "        String::from(\"hi\")\n    }\n}\n\n"
+                                  "impl Area for Square {\n    fn area(&self) -> f64 {\n"
+                                  "        self.side * self.side\n    }\n}\n\n"
+                                  "impl Greet for Square {\n    fn hello(&self) -> String {\n"
+                                  "        String::from(\"square\")\n    }\n}\n"}};
     ASSERT_TRUE(edge_present(f, 1, "IMPLEMENTS", 2)); /* 3 impl-for blocks */
     PASS();
 }
 
 /* DECORATES — decorated def -> locally-defined decorator function. */
 TEST(contract_edge_decorates) {
-    static const LangFile f[] = {
-        {"audit.py", "def audit(func):\n    def wrapper(*args, **kwargs):\n"
-                     "        return func(*args, **kwargs)\n    return wrapper\n\n\n"
-                     "def trace(func):\n    def inner(*args, **kwargs):\n"
-                     "        return func(*args, **kwargs)\n    return inner\n\n\n"
-                     "@audit\ndef process_order(order_id):\n    return order_id\n\n\n"
-                     "@trace\ndef cancel_order(order_id):\n    return order_id\n\n\n"
-                     "@audit\ndef refund_order(order_id):\n    return order_id\n"}};
+    static const LangFile f[] = {{"audit.py",
+                                  "def audit(func):\n    def wrapper(*args, **kwargs):\n"
+                                  "        return func(*args, **kwargs)\n    return wrapper\n\n\n"
+                                  "def trace(func):\n    def inner(*args, **kwargs):\n"
+                                  "        return func(*args, **kwargs)\n    return inner\n\n\n"
+                                  "@audit\ndef process_order(order_id):\n    return order_id\n\n\n"
+                                  "@trace\ndef cancel_order(order_id):\n    return order_id\n\n\n"
+                                  "@audit\ndef refund_order(order_id):\n    return order_id\n"}};
     ASSERT_TRUE(edge_present(f, 1, "DECORATES", 2)); /* 3 decorated defs */
     PASS();
 }
@@ -925,9 +978,10 @@ TEST(contract_edge_tests_file) {
 /* HANDLES — Flask @app.route decorator handler -> Route node. */
 TEST(contract_edge_handles) {
     static const LangFile f[] = {
-        {"app.py", "from flask import Flask\n\napp = Flask(__name__)\n\n\n"
-                   "@app.route(\"/users\")\ndef list_users():\n    return {\"users\": []}\n\n\n"
-                   "@app.route(\"/health\")\ndef health_check():\n    return {\"status\": \"ok\"}\n"}};
+        {"app.py",
+         "from flask import Flask\n\napp = Flask(__name__)\n\n\n"
+         "@app.route(\"/users\")\ndef list_users():\n    return {\"users\": []}\n\n\n"
+         "@app.route(\"/health\")\ndef health_check():\n    return {\"status\": \"ok\"}\n"}};
     ASSERT_TRUE(edge_present(f, 1, "HANDLES", 1)); /* 2 route handlers */
     PASS();
 }
@@ -992,7 +1046,8 @@ TEST(contract_edge_similar_to) {
          "    if u.Phone == \"\" { return errors.New(\"phone required\") }\n"
          "    if len(u.Phone) < 7 { return errors.New(\"phone too short\") }\n"
          "    if u.Country == \"\" { return errors.New(\"country required\") }\n"
-         "    for _, c := range u.Tags {\n        if c == \"\" { return errors.New(\"empty tag\") }\n    }\n"
+         "    for _, c := range u.Tags {\n        if c == \"\" { return errors.New(\"empty tag\") "
+         "}\n    }\n"
          "    return nil\n}\n"},
         {"pkg/validation/order_validator.go",
          "package validation\nimport \"errors\"\nimport \"strings\"\n"
@@ -1006,7 +1061,8 @@ TEST(contract_edge_similar_to) {
          "    if o.Region == \"\" { return errors.New(\"region required\") }\n"
          "    if len(o.Region) < 7 { return errors.New(\"region too short\") }\n"
          "    if o.Vendor == \"\" { return errors.New(\"vendor required\") }\n"
-         "    for _, c := range o.Items {\n        if c == \"\" { return errors.New(\"empty item\") }\n    }\n"
+         "    for _, c := range o.Items {\n        if c == \"\" { return errors.New(\"empty "
+         "item\") }\n    }\n"
          "    return nil\n}\n"}};
     ASSERT_TRUE(edge_present(f, 2, "SIMILAR_TO", 1));
     PASS();
@@ -1025,14 +1081,17 @@ TEST(contract_edge_semantically_related) {
          "    \"\"\"Normalize a user record by sanitizing fields and looking up defaults.\"\"\"\n"
          "    result = {}\n    name = sanitize(record.get(\"name\", \"\"))\n"
          "    email = sanitize(record.get(\"email\", \"\"))\n    role = lookup(table, name)\n"
-         "    if name and email:\n        result[\"name\"] = name\n        result[\"email\"] = email\n"
+         "    if name and email:\n        result[\"name\"] = name\n        result[\"email\"] = "
+         "email\n"
          "        result[\"role\"] = role\n        audit_log(\"normalized user record\")\n"
          "    return result\n\n\n"
          "def normalize_account_record(record: dict, table: dict) -> dict:\n"
-         "    \"\"\"Normalize an account record by sanitizing fields and looking up defaults.\"\"\"\n"
+         "    \"\"\"Normalize an account record by sanitizing fields and looking up "
+         "defaults.\"\"\"\n"
          "    result = {}\n    name = sanitize(record.get(\"name\", \"\"))\n"
          "    email = sanitize(record.get(\"email\", \"\"))\n    role = lookup(table, name)\n"
-         "    while name and email:\n        result[\"name\"] = name\n        result[\"email\"] = email\n"
+         "    while name and email:\n        result[\"name\"] = name\n        result[\"email\"] = "
+         "email\n"
          "        result[\"role\"] = role\n        audit_log(\"normalized account record\")\n"
          "        break\n    return result\n\n\n"
          "def normalize_member_record(record: dict, table: dict) -> dict:\n"
@@ -1044,7 +1103,8 @@ TEST(contract_edge_semantically_related) {
          "        result[\"role\"] = role\n        audit_log(\"normalized member record\")\n"
          "    return result\n\n\n"
          "def normalize_profile_record(record: dict, table: dict) -> dict:\n"
-         "    \"\"\"Normalize a profile record by sanitizing fields and looking up defaults.\"\"\"\n"
+         "    \"\"\"Normalize a profile record by sanitizing fields and looking up "
+         "defaults.\"\"\"\n"
          "    result = {}\n    name = sanitize(record.get(\"name\", \"\"))\n"
          "    email = sanitize(record.get(\"email\", \"\"))\n    role = lookup(table, name)\n"
          "    try:\n        assert name and email\n        result[\"name\"] = name\n"
@@ -1071,8 +1131,9 @@ TEST(contract_edge_tests) {
     static const LangFile f[] = {
         {"calc.go", "package calc\n\nfunc Add(a int, b int) int {\n\treturn a + b\n}\n\n"
                     "func Mul(a int, b int) int {\n\treturn a * b\n}\n"},
-        {"calc_test.go", "package calc\n\nfunc TestAdd(t *T) {\n\tgot := Add(2, 3)\n\t_ = got\n}\n\n"
-                         "func TestMul(t *T) {\n\tgot := Mul(2, 3)\n\t_ = got\n}\n"}};
+        {"calc_test.go",
+         "package calc\n\nfunc TestAdd(t *T) {\n\tgot := Add(2, 3)\n\t_ = got\n}\n\n"
+         "func TestMul(t *T) {\n\tgot := Mul(2, 3)\n\t_ = got\n}\n"}};
     ASSERT_TRUE(edge_present(f, 2, "TESTS", 1)); /* TestAdd->Add, TestMul->Mul */
     PASS();
 }
@@ -1085,7 +1146,8 @@ TEST(contract_edge_tests) {
 TEST(contract_edge_workspaces_imports_issue408) {
     static const LangFile f[] = {
         {"package.json", "{\"name\":\"root\",\"private\":true,\"workspaces\":[\"packages/*\"]}\n"},
-        {"packages/a/package.json", "{\"name\":\"@org/a\",\"version\":\"1.0.0\",\"main\":\"index.js\"}\n"},
+        {"packages/a/package.json",
+         "{\"name\":\"@org/a\",\"version\":\"1.0.0\",\"main\":\"index.js\"}\n"},
         {"packages/a/index.js", "export function fromA() {\n  return 1;\n}\n"},
         {"packages/b/package.json",
          "{\"name\":\"@org/b\",\"version\":\"1.0.0\",\"main\":\"index.js\","
@@ -1142,13 +1204,15 @@ TEST(contract_edge_parallel_service_edges) {
     static const LangFile meaningful[] = {
         /* GRAPHQL_CALLS: local gql() — resolved callee QN contains "gql". */
         {"gql.py", "def gql(query_string):\n    return query_string\n"},
-        {"client.py", "from gql import gql\n\n\ndef fetch_user():\n"
-                      "    return gql(\"query GetUser { user { id name } }\")\n\n\n"
-                      "def create_user():\n"
-                      "    return gql(\"mutation CreateUser { addUser(name: \\\"x\\\") { id } }\")\n"},
+        {"client.py",
+         "from gql import gql\n\n\ndef fetch_user():\n"
+         "    return gql(\"query GetUser { user { id name } }\")\n\n\n"
+         "def create_user():\n"
+         "    return gql(\"mutation CreateUser { addUser(name: \\\"x\\\") { id } }\")\n"},
         /* TRPC_CALLS: local createTRPCProxyClient (same-module resolution). */
         {"trpc_client.ts",
-         "export function createTRPCProxyClient(opts: any): any {\n  return { invoke: () => opts };\n}\n\n"
+         "export function createTRPCProxyClient(opts: any): any {\n  return { invoke: () => opts "
+         "};\n}\n\n"
          "export function loadUser(id: string) {\n  const client = createTRPCProxyClient({ id });\n"
          "  return client;\n}\n"},
         /* GRPC_CALLS: Go ServiceClient suffix heuristic (cross-package call). */
@@ -1157,8 +1221,10 @@ TEST(contract_edge_parallel_service_edges) {
          "package cartpb\n\nimport \"context\"\n\ntype GetCartRequest struct{ UserId string }\n"
          "type GetCartResponse struct{ Items int }\n\ntype CartServiceClient interface {\n"
          "\tGetCart(ctx context.Context, in *GetCartRequest) (*GetCartResponse, error)\n}\n\n"
-         "type cartServiceClient struct{}\n\nfunc NewCartServiceClient(cc interface{}) CartServiceClient {\n"
-         "\treturn &cartServiceClient{}\n}\n\nfunc (c *cartServiceClient) GetCart(ctx context.Context, "
+         "type cartServiceClient struct{}\n\nfunc NewCartServiceClient(cc interface{}) "
+         "CartServiceClient {\n"
+         "\treturn &cartServiceClient{}\n}\n\nfunc (c *cartServiceClient) GetCart(ctx "
+         "context.Context, "
          "in *GetCartRequest) (*GetCartResponse, error) {\n\treturn &GetCartResponse{}, nil\n}\n"},
         {"client/main.go",
          "package main\n\nimport (\n\t\"context\"\n\n\tpb \"example.com/grpcdemo/cartpb\"\n)\n\n"
@@ -1183,7 +1249,8 @@ TEST(contract_edge_parallel_service_edges) {
     int infra = store ? cbm_store_count_edges_by_type(store, lp.project, "INFRA_MAPS") : -1;
     if (graphql < 1 || grpc < 1 || trpc < 1 || infra < 1) {
         fprintf(stderr,
-                "  [EDGE] parallel-service: GRAPHQL_CALLS=%d GRPC_CALLS=%d TRPC_CALLS=%d INFRA_MAPS=%d\n",
+                "  [EDGE] parallel-service: GRAPHQL_CALLS=%d GRPC_CALLS=%d TRPC_CALLS=%d "
+                "INFRA_MAPS=%d\n",
                 graphql, grpc, trpc, infra);
         dump_edge_histogram(store, lp.project);
     }
