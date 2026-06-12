@@ -28,6 +28,8 @@ class CodebaseMemoryMcp < Formula
 
   def install
     bin.install "codebase-memory-mcp"
+    # Third-party attribution bundle (present in archives since v0.8.1)
+    doc.install "THIRD_PARTY_NOTICES.md" if File.exist?("THIRD_PARTY_NOTICES.md")
   end
 
   def caveats

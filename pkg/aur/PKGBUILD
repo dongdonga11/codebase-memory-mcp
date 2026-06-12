@@ -20,4 +20,9 @@ package() {
         "${pkgdir}/usr/bin/codebase-memory-mcp"
     install -Dm644 "${srcdir}/LICENSE" \
         "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+    # Third-party attribution bundle (present in archives since v0.8.1)
+    if [ -f "${srcdir}/THIRD_PARTY_NOTICES.md" ]; then
+        install -Dm644 "${srcdir}/THIRD_PARTY_NOTICES.md" \
+            "${pkgdir}/usr/share/licenses/${pkgname}/THIRD_PARTY_NOTICES.md"
+    fi
 }
