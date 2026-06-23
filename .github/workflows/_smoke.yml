@@ -202,17 +202,19 @@ jobs:
           scripts/security-install.sh ./codebase-memory-mcp
           scripts/security-network.sh ./codebase-memory-mcp
 
-  # ── Glama directory check image (non-gating) ──────────────────────
+  # ── Packaging check (non-gating) ──────────────────────────────────
   # Builds pkg/glama/Dockerfile — the image Glama builds to score the
   # server — and runs an MCP initialize + tools/list handshake to confirm the
   # containerized stdio server still starts and introspects. Guards the Glama
   # listing integration against drift (Dockerfile breakage, release-asset
   # renames, introspection regressions).
   #
+  # Also tests the brew tap/install flow.
+  #
   # continue-on-error: a broken *directory* image must never block a release —
   # the shipped product binaries are unaffected. The red X is the signal to fix
-  # the Glama integration, not a release gate.
-  smoke-glama-image:
+  # the integration, not a release gate.
+  smoke-packages:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true
@@ -220,3 +222,12 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - name: Build Glama image and verify MCP introspection
         run: bash pkg/glama/verify.sh
+      - name: Test homebrew installation
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew tap deusdata/codebase-memory-mcp "$GITHUB_WORKSPACE"
+          brew trust deusdata/codebase-memory-mcp
+          brew install codebase-memory-mcp
+          codebase-memory-mcp --version
