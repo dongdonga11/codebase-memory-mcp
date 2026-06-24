@@ -391,9 +391,11 @@ static const tool_def_t TOOLS[] = {
      "structure at a glance. Includes 'clusters': Leiden community detection over the call/import "
      "graph, surfacing the de-facto modules (each with a label, member count, cohesion score, "
      "representative top_nodes, and the packages/edge_types that bind it) — use these to grasp "
-     "the real architectural seams, which often cut across the folder layout.",
-     "{\"type\":\"object\",\"properties\":{\"project\":{\"type\":\"string\"},\"aspects\":{\"type\":"
-     "\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"project\"]}"},
+     "the real architectural seams, which often cut across the folder layout. Optional path scopes "
+     "analysis to nodes under that directory prefix (file_path).",
+     "{\"type\":\"object\",\"properties\":{\"project\":{\"type\":\"string\"},\"path\":{\"type\":"
+     "\"string\",\"description\":\"Optional directory prefix to scope architecture (e.g. apps/hoa)\"},"
+     "\"aspects\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"project\"]}"},
 
     {"search_code",
      "Graph-augmented code search. Finds text patterns via grep, then enriches results with "
@@ -1973,6 +1975,7 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
 
     int node_count = cbm_store_count_nodes_scoped(store, project, scope_path);
     int edge_count = cbm_store_count_edges_scoped(store, project, scope_path);
+    bool path_scoped = scope_path && scope_path[0];
 
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
@@ -1980,6 +1983,15 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
 
     if (project) {
         yyjson_mut_obj_add_str(doc, root, "project", project);
+    }
+    if (path_scoped) {
+        yyjson_mut_obj_add_str(doc, root, "path", scope_path);
+        int root_nodes = cbm_store_count_nodes(store, project);
+        int root_edges = cbm_store_count_edges(store, project);
+        yyjson_mut_obj_add_int(doc, root, "root_total_nodes", root_nodes);
+        yyjson_mut_obj_add_int(doc, root, "root_total_edges", root_edges);
+        yyjson_mut_obj_add_int(doc, root, "scoped_total_nodes", node_count);
+        yyjson_mut_obj_add_int(doc, root, "scoped_total_edges", edge_count);
     }
     yyjson_mut_obj_add_int(doc, root, "total_nodes", node_count);
     yyjson_mut_obj_add_int(doc, root, "total_edges", edge_count);
