@@ -1046,30 +1046,71 @@ static int dump_and_persist_hashes(cbm_pipeline_t *p, const cbm_file_info_t *fil
         return rc;
     }
     cbm_log_info("pass.timing", "pass", "dump", "elapsed_ms", itoa_buf((int)elapsed_ms(*t)));
+    /* Persist-tail spans (phase "persist"): attribute the ~60s that lands here
+     * AFTER cbm_gbuf_dump_to_sqlite returns. Active only under CBM_PROFILE. */
+    CBM_PROF_START(t_reopen);
     cbm_store_t *hash_store = cbm_store_open_path(db_path);
+    CBM_PROF_END("persist", "1_reopen", t_reopen);
     if (hash_store) {
+        CBM_PROF_START(t_delhash);
         cbm_store_delete_file_hashes(hash_store, p->project_name);
+        CBM_PROF_END("persist", "2_delete_file_hashes", t_delhash);
 
         /* Restore the ADR captured before the dump. Surface a failed restore
          * rather than silently dropping the ADR (the original #516 symptom). */
+        CBM_PROF_START(t_adr);
         if (p->saved_adr) {
             if (cbm_store_adr_store(hash_store, p->project_name, p->saved_adr) != CBM_STORE_OK) {
                 cbm_log_error("pipeline.err", "phase", "adr_restore", "project", p->project_name);
             }
         }
-        for (int i = 0; i < file_count; i++) {
-            struct stat fst;
-            if (stat(files[i].path, &fst) == 0) {
-                cbm_store_upsert_file_hash(hash_store, p->project_name, files[i].rel_path, "",
-                                           stat_mtime_ns(&fst), fst.st_size);
+        CBM_PROF_END("persist", "3_adr_restore", t_adr);
+
+        /* Batch the per-file hash upserts into ONE transaction. The per-file
+         * cbm_store_upsert_file_hash path autocommits, i.e. file_count fsyncs
+         * (~89k on the kernel); cbm_store_upsert_file_hash_batch wraps the same
+         * cached INSERT ... ON CONFLICT upsert in a single begin/commit. Same
+         * (project, rel_path, sha256="", mtime_ns, size) tuples, same replace
+         * semantics — only the transaction boundary changes. */
+        CBM_PROF_START(t_fh);
+        cbm_file_hash_t *fhashes = (cbm_file_hash_t *)malloc(
+            (size_t)(file_count > 0 ? file_count : 1) * sizeof(cbm_file_hash_t));
+        if (fhashes) {
+            int fh_n = 0;
+            for (int i = 0; i < file_count; i++) {
+                struct stat fst;
+                if (stat(files[i].path, &fst) == 0) {
+                    fhashes[fh_n].project = p->project_name;
+                    fhashes[fh_n].rel_path = files[i].rel_path;
+                    fhashes[fh_n].sha256 = "";
+                    fhashes[fh_n].mtime_ns = stat_mtime_ns(&fst);
+                    fhashes[fh_n].size = fst.st_size;
+                    fh_n++;
+                }
+            }
+            if (cbm_store_upsert_file_hash_batch(hash_store, fhashes, fh_n) != CBM_STORE_OK) {
+                cbm_log_error("pipeline.err", "phase", "persist_file_hashes", "project",
+                              p->project_name);
+            }
+            free(fhashes);
+        } else {
+            /* OOM fallback: the original per-file path (identical result, slower). */
+            for (int i = 0; i < file_count; i++) {
+                struct stat fst;
+                if (stat(files[i].path, &fst) == 0) {
+                    cbm_store_upsert_file_hash(hash_store, p->project_name, files[i].rel_path, "",
+                                               stat_mtime_ns(&fst), fst.st_size);
+                }
             }
         }
+        CBM_PROF_END_N("persist", "4_file_hashes", t_fh, file_count);
 
         /* FTS5 backfill: populate nodes_fts with camelCase-split names.
          * Contentless FTS5 requires the special 'delete-all' command instead of
          * DELETE FROM to wipe prior rows (there's no underlying content table).
          * Falls back to plain names if cbm_camel_split is unavailable (which
          * shouldn't happen because we always register it, but we stay defensive). */
+        CBM_PROF_START(t_fts);
         cbm_store_exec(hash_store, "INSERT INTO nodes_fts(nodes_fts) VALUES('delete-all');");
         if (cbm_store_exec(hash_store,
                            "INSERT INTO nodes_fts(rowid, name, qualified_name, label, file_path) "
@@ -1079,6 +1120,7 @@ static int dump_and_persist_hashes(cbm_pipeline_t *p, const cbm_file_info_t *fil
                            "INSERT INTO nodes_fts(rowid, name, qualified_name, label, file_path) "
                            "SELECT id, name, qualified_name, label, file_path FROM nodes;");
         }
+        CBM_PROF_END("persist", "5_fts_backfill", t_fts);
 
         cbm_store_close(hash_store);
         cbm_log_info("pass.timing", "pass", "persist_hashes", "files", itoa_buf(file_count));
@@ -1088,7 +1130,9 @@ static int dump_and_persist_hashes(cbm_pipeline_t *p, const cbm_file_info_t *fil
 
     /* Export persistent artifact if enabled */
     if (p->persistence) {
+        CBM_PROF_START(t_art);
         int arc = cbm_artifact_export(db_path, p->repo_path, p->project_name, CBM_ARTIFACT_BEST);
+        CBM_PROF_END("persist", "6_artifact_export", t_art);
         if (arc != 0) {
             const char *err = cbm_artifact_export_last_error();
             cbm_log_error("pipeline.err", "phase", "artifact_export", "err", err ? err : "unknown");
