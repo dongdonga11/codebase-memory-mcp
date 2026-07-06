@@ -195,10 +195,10 @@ jobs:
           path-type: inherit
           install: >-
             mingw-w64-clang-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-python3
+            mingw-w64-clang-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-curl
             unzip
             zip
             coreutils
-            curl
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
