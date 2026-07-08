@@ -4103,20 +4103,34 @@ static yyjson_doc *enrich_node_properties(yyjson_mut_doc *doc, yyjson_mut_val *o
  * the search path (attach_result_source) route through it, so a result whose
  * indexed path escapes the project root — via a `..` segment, or a symlink /
  * Windows junction picked up during discovery — is never read back out. */
+/* Canonicalize `path` (resolve symlinks/junctions and `..`) into `out`
+ * (>= CBM_SZ_4K bytes); returns true on success. Isolating the per-OS resolver
+ * keeps cbm_path_within_root's control flow unconditional: the previous `#ifdef`
+ * opened the `if (...) {` brace in one branch and a different one in the other,
+ * sharing a single close brace — legal C, but it splits the function's braces
+ * across preprocessor branches, which defeats source-level tooling that parses
+ * without the preprocessor (and left this function unindexed in the graph). */
+static bool resolve_canonical_path(const char *path, char *out, size_t out_sz) {
+#ifdef _WIN32
+    if (!_fullpath(out, path, out_sz)) {
+        return false;
+    }
+    cbm_normalize_path_sep(out);
+    return true;
+#else
+    (void)out_sz;
+    return realpath(path, out) != NULL;
+#endif
+}
+
 bool cbm_path_within_root(const char *root_path, const char *abs_path) {
     if (!root_path || !abs_path) {
         return false;
     }
     char real_root[CBM_SZ_4K];
     char real_file[CBM_SZ_4K];
-#ifdef _WIN32
-    if (_fullpath(real_root, root_path, sizeof(real_root)) &&
-        _fullpath(real_file, abs_path, sizeof(real_file))) {
-        cbm_normalize_path_sep(real_root);
-        cbm_normalize_path_sep(real_file);
-#else
-    if (realpath(root_path, real_root) && realpath(abs_path, real_file)) {
-#endif
+    if (resolve_canonical_path(root_path, real_root, sizeof(real_root)) &&
+        resolve_canonical_path(abs_path, real_file, sizeof(real_file))) {
         size_t root_len = strlen(real_root);
         if (strncmp(real_file, real_root, root_len) == 0 &&
             (real_file[root_len] == '/' || real_file[root_len] == '\0')) {
