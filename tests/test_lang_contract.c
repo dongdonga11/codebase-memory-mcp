@@ -71,13 +71,18 @@ static cbm_store_t *lang_open_indexed(LangProj *lp) {
     if (!lp->project) {
         return NULL;
     }
-    const char *home = getenv("HOME");
-    if (!home) {
-        home = "/tmp";
-    }
     char cache_dir[512];
-    snprintf(cache_dir, sizeof(cache_dir), "%s/.cache/codebase-memory-mcp", home);
-    cbm_mkdir(cache_dir);
+    const char *configured_cache = getenv("CBM_CACHE_DIR");
+    if (configured_cache && configured_cache[0]) {
+        snprintf(cache_dir, sizeof(cache_dir), "%s", configured_cache);
+    } else {
+        const char *home = getenv("HOME");
+        if (!home) {
+            home = "/tmp";
+        }
+        snprintf(cache_dir, sizeof(cache_dir), "%s/.cache/codebase-memory-mcp", home);
+    }
+    cbm_mkdir_p(cache_dir, 0755);
     snprintf(lp->dbpath, sizeof(lp->dbpath), "%s/%s.db", cache_dir, lp->project);
     unlink(lp->dbpath);
     lp->srv = cbm_mcp_server_new(NULL);

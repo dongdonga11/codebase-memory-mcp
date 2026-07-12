@@ -9,6 +9,7 @@ int tf_fail_count = 0;
 int tf_skip_count = 0;
 
 #include "test_framework.h"
+#include "test_helpers.h"
 #include "foundation/compat.h"    /* cbm_setenv — #845 supervisor kill switch */
 #include "foundation/compat_fs.h" /* cbm_fopen — worker response file */
 #include "foundation/mem.h"       /* cbm_mem_init — worker budget */
@@ -23,6 +24,32 @@ int tf_skip_count = 0;
 #ifdef _WIN32
 #include <winsock2.h> /* #798 follow-up: socket-isolation re-exec probe */
 #endif
+
+/* Test handlers that exercise the production index_repository flow must never
+ * inherit the user's real cache. Individual tests may temporarily override
+ * this sentinel and restore it; atexit removes anything left behind by an
+ * assertion that returns before fixture cleanup. */
+static char tf_home_sentinel[512];
+
+static void tf_cleanup_cache_sentinel(void) {
+    if (tf_home_sentinel[0]) {
+        th_rmtree(tf_home_sentinel);
+    }
+}
+
+static bool tf_setup_cache_sentinel(void) {
+    snprintf(tf_home_sentinel, sizeof(tf_home_sentinel), "/tmp/cbm-test-home-XXXXXX");
+    if (!cbm_mkdtemp(tf_home_sentinel)) {
+        return false;
+    }
+    /* Legacy integration fixtures derive DB paths from HOME, while production
+     * cache_dir() prefers CBM_CACHE_DIR. A private HOME plus no inherited cache
+     * override keeps both conventions pointed at the same isolated tree. */
+    cbm_setenv("HOME", tf_home_sentinel, 1);
+    cbm_unsetenv("CBM_CACHE_DIR");
+    atexit(tf_cleanup_cache_sentinel);
+    return true;
+}
 
 /* #832 guard support: when the index supervisor spawns THIS binary as
  * `<self> cli --index-worker index_repository <args_json> --response-out <file>`
@@ -267,6 +294,10 @@ int main(int argc, char **argv) {
      * binary as `<self> cli --index-worker …` and recursively re-run suites.
      * A test that exercises the supervisor must explicitly re-enable it. */
     cbm_setenv("CBM_INDEX_SUPERVISOR", "0", 1);
+    if (!tf_setup_cache_sentinel()) {
+        fprintf(stderr, "failed to create isolated test cache\n");
+        return 2;
+    }
 
     g_suite_argc = argc;
     g_suite_argv = argv;
