@@ -5,8 +5,18 @@
 #   Linux arm64:    test (ASan+LeakSan) + build (-O2)  [native, fast]
 #   Linux amd64:    test + build                        [QEMU, slower]
 #   Linux portable: Alpine musl static build + smoke    [portable binary]
-#   Windows:        cross-compile with mingw-w64        [compile-check]
+#   Windows:        cross-compile with mingw-w64        [compile-check; Wine
+#                   CANNOT reproduce real Windows ACL/token/owner semantics —
+#                   those need a real Windows VM or the CI legs]
 #   macOS:          run natively (not in Docker)
+#
+# CI fidelity: the test containers are capped at 4 CPUs to mirror the GitHub
+# runners — deadline/starvation failures only reproduce under that constraint.
+# CBM_LOCAL_CI_CPUS overrides (0 = unconstrained fast mode). ccache persists
+# in named volumes; entries are content-verified (stale hits impossible), so
+# warm reruns skip unchanged compilation entirely.
+# Run this from the WORKTREE you want tested: the containers mount the repo
+# this script resides in.
 #
 # Usage:
 #   ./test-infrastructure/run.sh              # arm64 test+build + portable + Windows

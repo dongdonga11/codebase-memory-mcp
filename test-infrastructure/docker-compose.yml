@@ -8,13 +8,22 @@
 
 services:
   # ── Linux test (ASan + UBSan + LeakSanitizer) ──────────────
+  # cpus defaults to 4 to mirror the GitHub runners: deadline/starvation bugs
+  # (worker-readiness waits, watcher/subprocess deadlines) only reproduce when
+  # the machine is as constrained as CI — 18 free cores mask them. Override
+  # with CBM_LOCAL_CI_CPUS (0 = unconstrained fast mode).
   test:
     build:
       context: ..
       dockerfile: test-infrastructure/Dockerfile
     platform: linux/arm64
+    cpus: ${CBM_LOCAL_CI_CPUS:-4.0}
     volumes:
       - ..:/src
+      - cbm-ccache-arm64:/root/.ccache
+    environment:
+      CCACHE_DIR: /root/.ccache
+      CCACHE_MAXSIZE: 1500M
     command: ["CC=gcc", "CXX=g++"]
 
   test-amd64:
@@ -22,8 +31,13 @@ services:
       context: ..
       dockerfile: test-infrastructure/Dockerfile
     platform: linux/amd64
+    cpus: ${CBM_LOCAL_CI_CPUS:-4.0}
     volumes:
       - ..:/src
+      - cbm-ccache-amd64:/root/.ccache
+    environment:
+      CCACHE_DIR: /root/.ccache
+      CCACHE_MAXSIZE: 1500M
     command: ["CC=gcc", "CXX=g++"]
 
   # ── Linux production build (-O2 -Werror) ───────────────────
@@ -172,3 +186,7 @@ services:
       dockerfile: test-infrastructure/Dockerfile.lint
     volumes:
       - ..:/src
+
+volumes:
+  cbm-ccache-arm64:
+  cbm-ccache-amd64:
