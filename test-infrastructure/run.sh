@@ -35,9 +35,12 @@
 #   ln -sf /opt/homebrew/opt/docker-compose/bin/docker-compose ~/.docker/cli-plugins/docker-compose
 #   ln -sf /opt/homebrew/opt/docker-buildx/bin/docker-buildx  ~/.docker/cli-plugins/docker-buildx
 #   colima start --vm-type vz --vz-rosetta --cpu "$(sysctl -n hw.ncpu)" --memory 32
-# Give the VM ALL cores and generous memory — speed beats resource limits;
-# leave ~16 GB to macOS itself. --vz-rosetta is required for fast amd64 legs
-# (QEMU otherwise). Autostart at login: brew services start colima.
+# vCPUs are NOT a reservation: idle guest cores cost nothing and the macOS
+# scheduler shares freely with everything else running. Exposing all cores
+# just removes the artificial ceiling a smaller VM would impose on container
+# runs — no session seizes anything. Memory is the only semi-reservation,
+# hence 32 GB, leaving macOS ample headroom. --vz-rosetta is required for
+# fast amd64 legs (QEMU otherwise). Autostart: brew services start colima.
 #
 # Monitoring a running leg: docker logs -f <container>  (or tail the log you
 # redirected to). Check in regularly instead of waiting blind — suite results
