@@ -479,6 +479,17 @@ cbm_version_cohort_status_t cbm_version_cohort_acquire(cbm_version_cohort_manage
             } else {
                 cbm_daemon_hello_status_t comparison =
                     cbm_daemon_hello_compare(&active, identity, conflict_out);
+                if (comparison == CBM_DAEMON_HELLO_INVALID) {
+                    /* The record decoded but hello_compare rejected an identity
+                     * field as invalid (empty version/fingerprint/cache). Name
+                     * the decoded active values so the malformed field on the
+                     * Windows cross-process read path is visible. */
+                    cbm_log_warn(
+                        "version_cohort.active_identity_invalid", "version",
+                        active.semantic_version ? active.semantic_version : "<null>", "build",
+                        active.build_fingerprint ? active.build_fingerprint : "<null>", "cache",
+                        active.cache_fingerprint ? active.cache_fingerprint : "<null>");
+                }
                 const char *active_cache_fingerprint =
                     active.cache_fingerprint ? active.cache_fingerprint : "";
                 const char *requested_cache_fingerprint =
