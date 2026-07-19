@@ -72,11 +72,20 @@ vm/win.sh push-file src/cli/cli.c /c/cbm/src/cli/cli.c   # WIP iteration
   (ACL/owner/paths/locks — the entire Windows tail class) reproduce
   faithfully. Build with `SANITIZE=` (no ASan runtime exists for
   aarch64-windows).
-- **CLANG64 (x86_64 = CI's arch, emulated)**: for arch-parity checks
-  (`win.sh asan-build` builds it). **ASan does NOT work under x64-on-ARM
-  emulation** (the runtime faults in process init) — verified, don't retry.
-  Windows sanitizer coverage therefore stays a CI-only leg; note the CI
-  windows failures have historically been logic failures, not ASan aborts.
+- **CLANG64 (x86_64 = CI's arch, emulated)**: arch-parity checks and
+  **UBSan, which WORKS under emulation** (validated: builds, runs, and
+  reports a planted signed-overflow with file:line) — `win.sh ubsan-build`
+  + `ubsan-test <suites>`. UBSan needs no interceptors, which is why it
+  survives emulation.
+- **ASan does NOT exist on this VM in either arch** — verified, don't
+  retry: the aarch64-windows compiler-rt ships no sanitizer runtimes at
+  all (MSVC's ARM64 ASan is a VS-2026 preview tied to the MSVC CRT), and
+  the x86_64 ASan runtime faults during process-init under x64-on-ARM
+  emulation. ASan coverage stays a CI-only leg; note the CI windows
+  failures have historically been logic failures, not ASan aborts.
+- **PageHeap** (`win.sh pageheap on|off`): OS-level page-granular heap
+  overflow/UAF detection for the native ARM64 test-runner — a
+  toolchain-agnostic partial ASan substitute that works on real Windows.
 - The bootstrap mirrors the GitHub-runner default-owner policy
   (`NoDefaultAdminOwner=0`) so CI-only ownership refusals reproduce locally.
 - Environment shape (runner temp paths, runneradmin profile) is

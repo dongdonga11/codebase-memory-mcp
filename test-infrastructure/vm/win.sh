@@ -14,7 +14,9 @@
 #   win.sh smoke-install           # real managed-install E2E (Phase 8 class)
 #   win.sh sh <command...>         # arbitrary command in CLANGARM64 env
 #   win.sh push-file <local> <vm>  # scp one file into the VM (WIP iteration)
-#   win.sh asan-build              # x86_64 CLANG64 build WITH ASan (CI arch)
+#   win.sh test-par                # full suite, parallel on all VM cores
+#   win.sh ubsan-build|ubsan-test  # UBSan at CI's x86_64 arch (emulated; works)
+#   win.sh pageheap on|off         # OS heap verification for native runs
 set -euo pipefail
 
 CONFIG="${HOME}/.claude/cbm-vm/config"
@@ -42,7 +44,7 @@ update)
     exec "$0" build
     ;;
 build)
-    vm clangarm64 "cd /c/cbm && make -j${JOBS} -f Makefile.cbm CC=clang CXX=clang++ SANITIZE= cbm build/c/test-runner > /tmp/win-build.log 2>&1 && echo BUILD_OK || (echo BUILD_FAIL; tail -20 /tmp/win-build.log; exit 1)"
+    vm clangarm64 "cd /c/cbm && make -j${JOBS} -f Makefile.cbm CC='ccache clang' CXX='ccache clang++' SANITIZE= cbm build/c/test-runner > /tmp/win-build.log 2>&1 && echo BUILD_OK || (echo BUILD_FAIL; tail -20 /tmp/win-build.log; exit 1)"
     ;;
 test)
     [ $# -ge 1 ] || { echo "usage: win.sh test <suite...>" >&2; exit 2; }
@@ -65,10 +67,34 @@ push-file)
     dest="${2/#\/c\//C:\/}"
     scp -i "$KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$1" "${USER_}@${HOST}:${dest}"
     ;;
-asan-build)
-    # x86_64 (CI's exact arch) with ASan, runs under Windows-on-ARM emulation.
-    # Slower; use when a finding needs sanitizer confirmation or CI-arch parity.
-    vm clang64 "cd /c/cbm && make -j${JOBS} -f Makefile.cbm CC=clang CXX=clang++ build/c/test-runner > /tmp/win-asan-build.log 2>&1 && echo ASAN_BUILD_OK || (echo ASAN_BUILD_FAIL; tail -20 /tmp/win-asan-build.log; exit 1)"
+ubsan-build)
+    # x86_64 (CI's exact arch) with UBSan, runs under Windows-on-ARM emulation.
+    # Validated: UBSan needs no interceptors, so it builds, runs, AND reports
+    # correctly under emulation. (ASan does NOT: no aarch64 runtime exists and
+    # the x86_64 runtime faults in emulated process-init — ASan stays CI-only.)
+    vm clang64 "cd /c/cbm && make -j${JOBS} -f Makefile.cbm CC=clang CXX=clang++ SANITIZE='-fsanitize=undefined -fno-omit-frame-pointer' build/c/test-runner > /tmp/win-ubsan-build.log 2>&1 && echo UBSAN_BUILD_OK || (echo UBSAN_BUILD_FAIL; tail -20 /tmp/win-ubsan-build.log; exit 1)"
+    ;;
+ubsan-test)
+    [ $# -ge 1 ] || { echo "usage: win.sh ubsan-test <suite...>" >&2; exit 2; }
+    vm clang64 "cd /c/cbm && ./build/c/test-runner $* 2>&1 | tail -40"
+    ;;
+pageheap)
+    # OS-level heap verification (page-granular overflow/UAF detection) for the
+    # native ARM64 test-runner — toolchain-agnostic partial ASan substitute.
+    # 'on' enables full PageHeap for test-runner.exe via IFEO; 'off' removes it.
+    case "${1:-}" in
+    on)
+        "${SSH[@]}" "reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\test-runner.exe\" /v GlobalFlag /t REG_DWORD /d 0x02000000 /f && reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\test-runner.exe\" /v PageHeapFlags /t REG_DWORD /d 0x3 /f && echo PAGEHEAP_ON"
+        ;;
+    off)
+        "${SSH[@]}" "reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\test-runner.exe\" /f && echo PAGEHEAP_OFF"
+        ;;
+    *)  echo "usage: win.sh pageheap on|off" >&2; exit 2 ;;
+    esac
+    ;;
+test-par)
+    # Full-suite parallel run on all VM cores via the repo's parallel harness.
+    vm clangarm64 "cd /c/cbm && bash scripts/run-tests-parallel.sh build/c/test-runner 2>&1 | tail -25"
     ;;
 *)
     echo "unknown command: $cmd (see header for usage)" >&2; exit 2
