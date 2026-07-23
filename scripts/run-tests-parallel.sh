@@ -37,6 +37,28 @@ LOGDIR="$(dirname "$RUNNER")/test-logs"
 rm -rf "$LOGDIR"
 mkdir -p "$LOGDIR"
 
+# Windows: shape the build directory like a real user checkout BEFORE the
+# suites run. MSYS2's Cygwin layer writes POSIX-emulating DACLs — including
+# CREATOR OWNER (S-1-3-0) mutation grants — onto directories its tools
+# touch, and workspace drive roots additionally inherit Authenticated-Users
+# Modify; the activation transaction's source-directory policy correctly
+# refuses both, which would fail the install-flow tests on the environment,
+# not the code. Stamping must happen AFTER the build (the builders are the
+# ones re-writing the DACL), so it lives here rather than in workflow
+# setup. Two idempotent steps: protect the DIRECTORY (inheritance flags are
+# directory-only — a /T re-root leaves files with empty deny-all DACLs),
+# then /reset the children to re-inherit the clean set.
+case "$(uname -s 2>/dev/null)" in
+MINGW* | MSYS*)
+    runner_dir_w="$(cygpath -w "$(dirname "$RUNNER")")"
+    me="$(whoami | tr -d '\r')"
+    MSYS2_ARG_CONV_EXCL='*' icacls "$runner_dir_w" /inheritance:r \
+        /grant:r "${me}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' \
+        /Q >/dev/null 2>&1 || true
+    MSYS2_ARG_CONV_EXCL='*' icacls "${runner_dir_w}\\*" /reset /T /C /Q >/dev/null 2>&1 || true
+    ;;
+esac
+
 SUITES_FILE="$LOGDIR/suites.txt"
 RESULTS_FILE="$LOGDIR/results.txt"
 
